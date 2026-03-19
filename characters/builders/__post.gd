@@ -1,0 +1,477 @@
+extends MapperUtilities
+
+const FADE_MATERIAL_METADATA: String = "fade_material"
+const SHADER_FADE_PROPERTY: String = "fade"
+
+@warning_ignore("unused_parameter")
+static func build(map: MapperMap) -> void:
+	# creating storage node for the map data
+	var storage_node := Node3D.new()
+	map.node.add_child(storage_node)
+	map.node.move_child(storage_node, 0)
+	storage_node.name = "STORAGE"
+
+	# finding map layers and deleting empty nodes
+	var layers := map.node.find_child("func_group", false, false)
+	for child in map.node.get_children():
+		if child == storage_node: continue
+		if child.get_children().size():
+			map.node.remove_child(child)
+			storage_node.add_child(child, true)
+		else: child.free()
+	if not layers: return
+
+	# finding info_animation entity
+	var animation_info := MapperEntity.new()
+	if map.classnames.has("info_animation"):
+		animation_info = map.classnames.get("info_animation", [null])[0]
+	var autoplay: String = animation_info.get_string_property("autoplay", "")
+	autoplay = autoplay.to_lower()
+
+	# parsing unsorted animations from map layers
+	var animations: Dictionary = {}
+	var animation_nodes: Array = []
+	for child in layers.get_children():
+		var split: PackedStringArray = child.name.split("->", false, 1)
+		if split.size() != 2: continue
+		split[1] = split[1].replace("_", ".")
+		if not split[1].is_valid_float(): continue
+		var name := split[0].to_lower()
+		var frame := float(split[1])
+
+		animations.get_or_add(name, {})
+		animations[name].get_or_add("nodes", []).append(child)
+		animations[name].get_or_add("frames", []).append(frame)
+		var max_frame: float = animations[name].get_or_add("max_frame", 0.0)
+		animations[name]["max_frame"] = maxf(frame, max_frame)
+
+		# reading animation parameters from info_animation entity
+		var info: Dictionary = animation_info.get_variant_property(split[0], {})
+		animations[name]["frame_duration"] = info.get("frame_duration", 0.2)
+		animations[name]["loop_mode"] = info.get("loop_mode", 1)
+		animations[name]["fade"] = info.get("fade", [])
+		animations[name]["fade_before"] = info.get("fade_before", true)
+		animations[name]["fade_after"] = info.get("fade_after", false)
+
+		animation_nodes.append([child, child.get_meta("_MAPPER_INDEX", 0)])
+		child.remove_meta("_MAPPER_INDEX")
+		layers.remove_child(child)
+
+	# replacing layer nodes that failed to parse as animations
+	for layer in layers.get_children():
+		if not layer.get_children().size(): layer.free()
+		elif layer.get_meta("_MAPPER_EMPTY", false):
+			layer.remove_meta("_MAPPER_EMPTY")
+			change_node_type(layer, "Node3D")
+	if not layers.get_children().size():
+		layers.free()
+
+	# sorting animations
+	for animation_name in animations:
+		var old_nodes: Array = animations[animation_name]["nodes"]
+		var old_frames: Array = animations[animation_name]["frames"]
+		var sorting: Array = []
+		for index in range(old_frames.size()):
+			sorting.append([old_nodes[index], old_frames[index]])
+		sorting.sort_custom(func(a, b): return a[1] < b[1])
+
+		var new_nodes: Array = []
+		var new_frames: Array = []
+		for index in range(sorting.size()):
+			new_nodes.append(sorting[index][0])
+			new_frames.append(sorting[index][1])
+		animations[animation_name]["nodes"] = new_nodes
+		animations[animation_name]["frames"] = new_frames
+
+	# sorting animation nodes by TB layer index and hiding them
+	animation_nodes.sort_custom(func(a, b): return a[1] < b[1])
+	for node in animation_nodes:
+		map.node.add_child(node[0])
+		node[0].visible = false
+
+	# merging layer data
+	for node in animation_nodes:
+		var layer_node: Node3D = node[0]
+		var transform := layer_node.transform.affine_inverse()
+		var mesh_instances := layer_node.find_children("*", "MeshInstance3D", true, false)
+		var collision_shapes := layer_node.find_children("*", "CollisionShape3D", true, false)
+		var occluder_instances := layer_node.find_children("*", "OccluderInstance3D", true, false)
+
+		mesh_instances = mesh_instances.filter(func(instance):
+			return instance.get_meta("_MAPPER_MERGE", false))
+		collision_shapes = collision_shapes.filter(func(instance):
+			return instance.get_meta("_MAPPER_MERGE", false))
+		occluder_instances = occluder_instances.filter(func(instance):
+			return instance.get_meta("_MAPPER_MERGE", false))
+
+		var mesh_instance := _merge_mesh_instances(mesh_instances, transform)
+		var collision_shape := _merge_collision_shapes(collision_shapes, transform)
+		var occluder_instance := _merge_occluder_instances(occluder_instances, transform)
+		collision_shape.disabled = true
+
+		for old_node in layer_node.find_children("*", "", true, false):
+			if not is_instance_valid(old_node): continue
+			if not old_node.get_meta("_MAPPER_MERGE", false): continue
+			var old_node_children := old_node.get_children()
+			old_node_children = old_node_children.filter(func(child):
+				return not child.get_meta("_MAPPER_MERGE", false))
+			if old_node_children.size():
+				old_node.remove_meta("_MAPPER_MERGE")
+				change_node_type(old_node, "Node3D")
+			else: old_node.free()
+
+		if occluder_instances.size():
+			layer_node.add_child(occluder_instance, true)
+			layer_node.move_child(occluder_instance, 0)
+		else: occluder_instance.free()
+		if collision_shapes.size():
+			layer_node.add_child(collision_shape, true)
+			layer_node.move_child(collision_shape, 0)
+		else: collision_shape.free()
+		if mesh_instances.size():
+			layer_node.add_child(mesh_instance, true)
+			layer_node.move_child(mesh_instance, 0)
+		else: mesh_instance.free()
+
+	# creating animation player
+	var animation_player := AnimationPlayer.new()
+	map.node.add_child(animation_player, true)
+	map.node.move_child(animation_player, 0)
+
+	# creating animation library for the animation player
+	var animation_library := AnimationLibrary.new()
+	_create_animation_table(map, animations, animation_nodes, animation_library, autoplay)
+	animation_player.add_animation_library("", animation_library)
+	animation_player.autoplay = autoplay
+
+	# creating reset animation for the animation player
+	MapperUtilities.create_reset_animation(animation_player, animation_library)
+
+
+static func _merge_mesh_instances(mesh_instances: Array, inverse_transform: Transform3D) -> MeshInstance3D:
+	var materials: Dictionary = {}
+	var surface_tools: Dictionary = {}
+	for mesh_instance in mesh_instances:
+		if not mesh_instance.visible: continue
+		if not mesh_instance.mesh: continue
+		var mesh: ArrayMesh = mesh_instance.mesh
+		var transform := inverse_transform * get_global_transform(mesh_instance)
+		for surface_index in range(mesh.get_surface_count()):
+			var surface_name := mesh.surface_get_name(surface_index)
+			if not materials.has(surface_name):
+				materials[surface_name] = [null, null]
+			materials[surface_name][0] = mesh.surface_get_material(surface_index)
+			materials[surface_name][1] = mesh_instance.get_surface_override_material(surface_index)
+			if not surface_tools.has(surface_name):
+				surface_tools[surface_name] = SurfaceTool.new()
+			surface_tools[surface_name].set_material(materials[surface_name][0])
+			surface_tools[surface_name].append_from(mesh, surface_index, transform)
+
+	var merged_mesh := ArrayMesh.new()
+	for surface_name in surface_tools:
+		merged_mesh = surface_tools[surface_name].commit(merged_mesh)
+		var surface_index := merged_mesh.get_surface_count() - 1
+		merged_mesh.surface_set_name(surface_index, surface_name)
+
+	var merged_mesh_instance := MeshInstance3D.new()
+	merged_mesh_instance.mesh = merged_mesh
+	for surface_index in range(merged_mesh.get_surface_count() if merged_mesh else 0):
+		var surface_name := merged_mesh.surface_get_name(surface_index)
+		var override_material: Material = materials.get(surface_name, [null, null])[1]
+		merged_mesh_instance.set_surface_override_material(surface_index, override_material)
+	merged_mesh_instance.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+
+	return merged_mesh_instance
+
+
+static func _merge_collision_shapes(collision_shapes: Array, inverse_transform: Transform3D) -> CollisionShape3D:
+	var merged_faces: PackedVector3Array = []
+	for collision_shape in collision_shapes:
+		if collision_shape.disabled: continue
+		if not collision_shape.shape: continue
+		var debug_mesh: ArrayMesh = collision_shape.shape.get_debug_mesh()
+		var transform := inverse_transform * get_global_transform(collision_shape)
+		var faces := transform * debug_mesh.generate_triangle_mesh().get_faces()
+		merged_faces.append_array(faces)
+
+	var collision_shape := CollisionShape3D.new()
+	collision_shape.shape = ConcavePolygonShape3D.new()
+	if merged_faces.size():
+		collision_shape.shape.set_faces(merged_faces)
+
+	return collision_shape
+
+
+static func _merge_occluder_instances(occluder_instances: Array, inverse_transform: Transform3D) -> OccluderInstance3D:
+	var merged_vertices: PackedVector3Array = []
+	var merged_indices: PackedInt32Array = []
+	for occluder_instance in occluder_instances:
+		if not occluder_instance.visible: continue
+		if not occluder_instance.occluder: continue
+		var occluder: ArrayOccluder3D = occluder_instance.occluder
+		var transform := inverse_transform * get_global_transform(occluder_instance)
+		var vertices := occluder.get_vertices()
+		var indices := occluder.get_indices()
+
+		vertices = transform * vertices
+		var last_size := merged_vertices.size()
+		for index in range(indices.size()):
+			indices[index] += last_size
+		merged_indices.append_array(indices)
+		merged_vertices.append_array(vertices)
+
+	var occluder_instance := OccluderInstance3D.new()
+	occluder_instance.occluder = ArrayOccluder3D.new()
+	if merged_vertices.size() and merged_indices.size():
+		occluder_instance.occluder.set_arrays(merged_vertices, merged_indices)
+
+	return occluder_instance
+
+
+static func _create_animation_table(map: MapperMap, animations: Dictionary, animation_nodes: Array, animation_library: AnimationLibrary, autoplay: String) -> void:
+	# creating animations
+	for name in animations:
+		var animation := Animation.new()
+		var data: Dictionary = animations[name]
+		var is_autoplay := bool(name == autoplay)
+		var has_frames := float(data["max_frame"] > 0.0)
+		if data["loop_mode"] == Animation.LOOP_PINGPONG: has_frames = false
+		animation.length = (data["max_frame"] + has_frames) * data["frame_duration"]
+		animation.loop_mode = data["loop_mode"]
+
+		# creating animation tracks
+		var track_materials: Dictionary = {}
+		for node_index in range(animation_nodes.size()):
+			var node: Node3D = animation_nodes[node_index][0]
+			var node_path := str(map.node.get_path_to(node))
+			var track_index = animation.get_track_count()
+
+			animation.add_track(Animation.TYPE_VALUE)
+			animation.track_set_path(track_index, node_path + ":visible")
+			animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
+			animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
+			animation.track_set_interpolation_loop_wrap(track_index, false)
+			animation.track_insert_key(track_index, 0.0, false)
+			animation.track_set_imported(track_index, true)
+			track_index += 1
+
+			var mesh_instance := node.find_child("MeshInstance3D", false, false)
+			if mesh_instance is MeshInstance3D:
+				for surface_index in range(mesh_instance.get_surface_override_material_count()):
+					var material: Material = mesh_instance.get_surface_override_material(surface_index)
+					var is_override_material := true
+					if material == null:
+						material = mesh_instance.get_active_material(surface_index)
+						is_override_material = false
+
+					# duplicating the original material for each animation
+					material = material.duplicate()
+					if is_override_material:
+						mesh_instance.set_surface_override_material(surface_index, material)
+					else: mesh_instance.mesh.surface_set_material(surface_index, material)
+
+					# trying to load fade material from material metadata
+					var fade_material = material
+					if material.has_meta(FADE_MATERIAL_METADATA):
+						fade_material = material.get_meta(FADE_MATERIAL_METADATA, null)
+						if fade_material != null:
+							if not fade_material is ShaderMaterial: continue
+							if fade_material.get_shader_parameter(SHADER_FADE_PROPERTY) == null:
+								continue
+					if fade_material != null and material != fade_material:
+						track_materials[track_index] = [material, fade_material.duplicate()]
+					else: track_materials[track_index] = [material, material]
+
+					var material_path := "/MeshInstance3D:surface_material_override/%s"
+					if not is_override_material:
+						material_path = "/MeshInstance3D:mesh:surface_%s/material"
+					material_path = material_path % [surface_index]
+
+					animation.add_track(Animation.TYPE_VALUE)
+					animation.track_set_path(track_index, node_path + material_path)
+					animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
+					animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
+					animation.track_set_interpolation_loop_wrap(track_index, false)
+					animation.track_insert_key(track_index, 0.0, material)
+					animation.track_set_imported(track_index, true)
+					if fade_material == null or material == fade_material:
+						animation.track_set_enabled(track_index, false)
+					track_index += 1
+
+					var default_priority := material.render_priority
+					var priority_path := "/MeshInstance3D:surface_material_override/%s:render_priority"
+					if not is_override_material:
+						priority_path = "/MeshInstance3D:mesh:surface_%s/material:render_priority"
+					priority_path = priority_path % [surface_index]
+
+					animation.add_track(Animation.TYPE_VALUE)
+					animation.track_set_path(track_index, node_path + priority_path)
+					animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
+					animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
+					animation.track_set_interpolation_loop_wrap(track_index, false)
+					animation.track_insert_key(track_index, 0.0, default_priority)
+					animation.track_set_imported(track_index, true)
+					track_index += 1
+
+					var fade_path := "/MeshInstance3D:surface_material_override/%s:shader_parameter/%s"
+					if not is_override_material:
+						fade_path = "/MeshInstance3D:mesh:surface_%s/material:shader_parameter/%s"
+					fade_path = fade_path % [surface_index, SHADER_FADE_PROPERTY]
+
+					animation.add_track(Animation.TYPE_VALUE)
+					animation.track_set_path(track_index, node_path + fade_path)
+					animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
+					animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
+					animation.track_set_interpolation_loop_wrap(track_index, false)
+					animation.track_insert_key(track_index, 0.0, 1.0)
+					animation.track_set_imported(track_index, true)
+					track_index += 1
+
+				animation.add_track(Animation.TYPE_VALUE)
+				animation.track_set_path(track_index, node_path + "/MeshInstance3D:cast_shadow")
+				animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
+				animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
+				animation.track_set_interpolation_loop_wrap(track_index, false)
+				animation.track_insert_key(track_index, 0.0, 1)
+				animation.track_set_imported(track_index, true)
+				track_index += 1
+
+			if node.find_child("CollisionShape3D", false, false) is CollisionShape3D:
+				animation.add_track(Animation.TYPE_VALUE)
+				animation.track_set_path(track_index, node_path + "/CollisionShape3D:disabled")
+				animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
+				animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
+				animation.track_set_interpolation_loop_wrap(track_index, false)
+				animation.track_insert_key(track_index, 0.0, true)
+				animation.track_set_imported(track_index, true)
+				track_index += 1
+
+			if node.find_child("OccluderInstance3D", false, false) is OccluderInstance3D:
+				animation.add_track(Animation.TYPE_VALUE)
+				animation.track_set_path(track_index, node_path + "/OccluderInstance3D:visible")
+				animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
+				animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
+				animation.track_set_interpolation_loop_wrap(track_index, false)
+				animation.track_insert_key(track_index, 0.0, true)
+				animation.track_set_imported(track_index, true)
+				track_index += 1
+
+		# inserting keys into the animation
+		for index1 in range(data["nodes"].size()):
+			var node: Node3D = data["nodes"][index1]
+			var fade_percents: Array = [0.0] + data["fade"]
+			var fade_frames: int = data["fade"].size()
+			var frames: int = data["frames"].size()
+
+			var main_track_path := str(map.node.get_path_to(node)) + ":visible"
+			var main_track_index := animation.find_track(main_track_path, Animation.TYPE_VALUE)
+			for index2 in range(frames):
+				var frame_time: float = data["frames"][index2] * data["frame_duration"]
+				var fade_frames_min := 1 + mini(mini(index2, (frames - index2 - 1)), fade_frames)
+				var is_visible := false
+				match animation.loop_mode:
+					Animation.LOOP_NONE:
+						for i in range(fade_frames_min):
+							if index2 == (index1 + i):
+								if i == 0 or data["fade_before"]:
+									is_visible = true
+							if index2 == (index1 - i):
+								if i == 0 or data["fade_after"]:
+									is_visible = true
+					Animation.LOOP_LINEAR:
+						for i in range(fade_frames_min):
+							if index2 == posmod(index1 + i, frames):
+								if i == 0 or data["fade_before"]:
+									is_visible = true
+							if index2 == posmod(index1 - i, frames):
+								if i == 0 or data["fade_after"]:
+									is_visible = true
+					Animation.LOOP_PINGPONG:
+						for i in range(fade_frames_min):
+							if index2 == posmod(index1 + i, frames):
+								is_visible = true
+							if index2 == posmod(index1 - i, frames):
+								is_visible = true
+				animation.track_insert_key(main_track_index, frame_time, is_visible)
+
+			var cast_shadow_track_path := str(map.node.get_path_to(node)) + "/MeshInstance3D:cast_shadow"
+			var cast_shadow_track_index := animation.find_track(cast_shadow_track_path, Animation.TYPE_VALUE)
+			if not cast_shadow_track_index < 0:
+				for index2 in range(frames):
+					var frame_time: float = data["frames"][index2] * data["frame_duration"]
+					animation.track_insert_key(cast_shadow_track_index, frame_time, bool(index1 == index2))
+
+			var material: Material = null
+			var fade_material: Material = null
+			var default_priority: int = 0
+			for track_index in range(main_track_index + 1, cast_shadow_track_index):
+				var c: int = track_index - (main_track_index + 1)
+				var track_offset: int = (main_track_index + 1) + int(c / 3.0) * 3
+				if track_index == track_offset:
+					default_priority = animation.track_get_key_value(track_offset + 1, 0)
+					fade_material = track_materials.get(track_offset, [null, null])[1]
+					material = track_materials.get(track_offset, [null, null])[0]
+
+				for index2 in range(frames):
+					var frame_time: float = data["frames"][index2] * data["frame_duration"]
+					var fade_frames_min := 1 + mini(mini(index2, (frames - index2 - 1)), fade_frames)
+					var priority := int(default_priority)
+					var fade: float = 1.0
+					match animation.loop_mode:
+						Animation.LOOP_NONE:
+							for i in range(fade_frames_min):
+								if index2 == (index1 + i):
+									if i == 0 or data["fade_before"]:
+										priority = default_priority - i
+										fade = fade_percents[i]
+								if index2 == (index1 - i):
+									if i == 0 or data["fade_after"]:
+										priority = default_priority - i
+										fade = fade_percents[i]
+						Animation.LOOP_LINEAR:
+							for i in range(fade_frames_min):
+								if index2 == posmod(index1 + i, frames):
+									if i == 0 or data["fade_before"]:
+										priority = default_priority - i
+										fade = fade_percents[i]
+								if index2 == posmod(index1 - i, frames):
+									if i == 0 or data["fade_after"]:
+										priority = default_priority - i
+										fade = fade_percents[i]
+						Animation.LOOP_PINGPONG:
+							for i in range(fade_frames_min):
+								if index2 == posmod(index1 + i, frames):
+									priority = default_priority - i
+									fade = fade_percents[i]
+								if index2 == posmod(index1 - i, frames):
+									priority = default_priority - i
+									fade = fade_percents[i]
+					if c % 3 == 0:
+						if index2 == index1:
+							animation.track_insert_key(track_index, frame_time, material)
+						else: animation.track_insert_key(track_index, frame_time, fade_material)
+					elif c % 3 == 1: animation.track_insert_key(track_index, frame_time, priority)
+					elif c % 3 == 2: animation.track_insert_key(track_index, frame_time, fade)
+
+			var track_path := str(map.node.get_path_to(node)) + "/CollisionShape3D:disabled"
+			var track_index := animation.find_track(track_path, Animation.TYPE_VALUE)
+			if not track_index < 0:
+				for index2 in range(frames):
+					var frame_time: float = data["frames"][index2] * data["frame_duration"]
+					animation.track_insert_key(track_index, frame_time, not bool(index1 == index2))
+
+			track_path = str(map.node.get_path_to(node)) + "/OccluderInstance3D:visible"
+			track_index = animation.find_track(track_path, Animation.TYPE_VALUE)
+			if not track_index < 0:
+				for index2 in range(frames):
+					var frame_time: float = data["frames"][index2] * data["frame_duration"]
+					animation.track_insert_key(track_index, frame_time, bool(index1 == index2))
+
+			if (index1 == 0 and is_autoplay):
+				var collision_shape := node.find_child("CollisionShape3D", false, false)
+				if collision_shape is CollisionShape3D: collision_shape.disabled = false
+				node.visible = true
+
+		# finishing animation and adding it to the library
+		MapperUtilities.remove_repeating_animation_keys(animation)
+		animation_library.add_animation(name, animation)

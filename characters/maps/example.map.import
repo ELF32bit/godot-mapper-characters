@@ -1,0 +1,21 @@
+[remap]
+
+importer="mapper.map.scene"
+type="PackedScene"
+uid="uid://gwkij2xh7xu0"
+path="res://.godot/imported/example.map-3dbaca559977e775c86d7d4718af9a10.scn"
+
+[deps]
+
+source_file="res://characters/maps/example.map"
+dest_files=["res://.godot/imported/example.map-3dbaca559977e775c86d7d4718af9a10.scn"]
+
+[params]
+
+game=2
+wads=[]
+options={
+"occlusion_culling": true,
+"print_progress": false,
+"store_base_materials": false
+}

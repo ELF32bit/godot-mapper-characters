@@ -1,0 +1,12 @@
+[gd_resource type="ShaderMaterial" format=3 uid="uid://dim2gdqw0hftu"]
+
+[ext_resource type="Shader" uid="uid://bk5uv40ta11pm" path="res://characters/shaders/character.gdshader" id="1_y7wwb"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_y7wwb")
+shader_parameter/wireframe_width_min = 10.0
+shader_parameter/wireframe_width_max = 20.0
+shader_parameter/wireframe_scale = 200.0
+shader_parameter/wireframe_pow = 0.0
+shader_parameter/fade = 0.0

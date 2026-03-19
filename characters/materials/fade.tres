@@ -1,0 +1,8 @@
+[gd_resource type="ShaderMaterial" format=3 uid="uid://b5mbe5vrco1qv"]
+
+[ext_resource type="Shader" uid="uid://dweh5jnnmp7ip" path="res://characters/shaders/fade.gdshader" id="1_kbpmg"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_kbpmg")
+shader_parameter/fade = 0.0
