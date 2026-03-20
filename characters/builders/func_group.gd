@@ -32,7 +32,7 @@ static func build(map: MapperMap, entity: MapperEntity) -> Node:
 	# creating group node
 	var node := build_animated_geometry(map, entity)
 	if node and map.is_group_entity(entity, "_tb_layer"):
-		node.remove_meta("MAPPER_MERGE")
+		node.remove_meta("_MAPPER_MERGE")
 	elif not node and map.is_group_entity(entity, "_tb_layer"):
 		node = AnimatableBody3D.new()
 		node.set_meta("_MAPPER_EMPTY", true)

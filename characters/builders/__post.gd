@@ -1,7 +1,7 @@
 extends MapperUtilities
 
-const FADE_MATERIAL_METADATA: String = "fade_material"
 const SHADER_FADE_PROPERTY: String = "fade"
+const FADE_MATERIAL_METADATA: String = "fade_material"
 
 @warning_ignore("unused_parameter")
 static func build(map: MapperMap) -> void:
@@ -90,7 +90,8 @@ static func build(map: MapperMap) -> void:
 		node[0].visible = false
 
 	# merging layer data
-	for node in animation_nodes:
+	for index in range(animation_nodes.size()):
+		var node: Array = animation_nodes[index]
 		var layer_node: Node3D = node[0]
 		var transform := layer_node.transform.affine_inverse()
 		var mesh_instances := layer_node.find_children("*", "MeshInstance3D", true, false)
@@ -120,6 +121,7 @@ static func build(map: MapperMap) -> void:
 				change_node_type(old_node, "Node3D")
 			else: old_node.free()
 
+		var has_collision := true
 		if occluder_instances.size():
 			layer_node.add_child(occluder_instance, true)
 			layer_node.move_child(occluder_instance, 0)
@@ -127,11 +129,21 @@ static func build(map: MapperMap) -> void:
 		if collision_shapes.size():
 			layer_node.add_child(collision_shape, true)
 			layer_node.move_child(collision_shape, 0)
-		else: collision_shape.free()
+		else:
+			collision_shape.free()
+			has_collision = false
 		if mesh_instances.size():
 			layer_node.add_child(mesh_instance, true)
 			layer_node.move_child(mesh_instance, 0)
 		else: mesh_instance.free()
+
+		if not has_collision:
+			var new_layer_node := change_node_type(layer_node, "Node3D")
+			for name in animations:
+				# DANGER: searching array for the node that has been freed
+				var i: int = animations[name]["nodes"].find(layer_node)
+				animations[name]["nodes"][i] = new_layer_node
+			animation_nodes[index] = [new_layer_node, node[1]]
 
 	# creating animation player
 	var animation_player := AnimationPlayer.new()
@@ -141,6 +153,7 @@ static func build(map: MapperMap) -> void:
 	# creating animation library for the animation player
 	var animation_library := AnimationLibrary.new()
 	_create_animation_table(map, animations, animation_nodes, animation_library, autoplay)
+	animation_player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_PHYSICS
 	animation_player.add_animation_library("", animation_library)
 	animation_player.autoplay = autoplay
 
@@ -231,10 +244,14 @@ static func _merge_occluder_instances(occluder_instances: Array, inverse_transfo
 static func _create_animation_table(map: MapperMap, animations: Dictionary, animation_nodes: Array, animation_library: AnimationLibrary, autoplay: String) -> void:
 	# creating animations
 	for name in animations:
-		var animation := Animation.new()
 		var data: Dictionary = animations[name]
 		var is_autoplay := bool(name == autoplay)
 		var has_frames := float(data["max_frame"] > 0.0)
+		var fade_percentages: Array = [0.0] + data["fade"]
+		var fade_frames: int = data["fade"].size()
+		var frames: int = data["frames"].size()
+
+		var animation := Animation.new()
 		if data["loop_mode"] == Animation.LOOP_PINGPONG: has_frames = false
 		animation.length = (data["max_frame"] + has_frames) * data["frame_duration"]
 		animation.loop_mode = data["loop_mode"]
@@ -244,7 +261,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 		for node_index in range(animation_nodes.size()):
 			var node: Node3D = animation_nodes[node_index][0]
 			var node_path := str(map.node.get_path_to(node))
-			var track_index = animation.get_track_count()
+			var track_index := animation.get_track_count()
 
 			animation.add_track(Animation.TYPE_VALUE)
 			animation.track_set_path(track_index, node_path + ":visible")
@@ -359,10 +376,6 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 		# inserting keys into the animation
 		for index1 in range(data["nodes"].size()):
 			var node: Node3D = data["nodes"][index1]
-			var fade_percents: Array = [0.0] + data["fade"]
-			var fade_frames: int = data["fade"].size()
-			var frames: int = data["frames"].size()
-
 			var main_track_path := str(map.node.get_path_to(node)) + ":visible"
 			var main_track_index := animation.find_track(main_track_path, Animation.TYPE_VALUE)
 			for index2 in range(frames):
@@ -423,29 +436,29 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 								if index2 == (index1 + i):
 									if i == 0 or data["fade_before"]:
 										priority = default_priority - i
-										fade = fade_percents[i]
+										fade = fade_percentages[i]
 								if index2 == (index1 - i):
 									if i == 0 or data["fade_after"]:
 										priority = default_priority - i
-										fade = fade_percents[i]
+										fade = fade_percentages[i]
 						Animation.LOOP_LINEAR:
 							for i in range(fade_frames_min):
 								if index2 == posmod(index1 + i, frames):
 									if i == 0 or data["fade_before"]:
 										priority = default_priority - i
-										fade = fade_percents[i]
+										fade = fade_percentages[i]
 								if index2 == posmod(index1 - i, frames):
 									if i == 0 or data["fade_after"]:
 										priority = default_priority - i
-										fade = fade_percents[i]
+										fade = fade_percentages[i]
 						Animation.LOOP_PINGPONG:
 							for i in range(fade_frames_min):
 								if index2 == posmod(index1 + i, frames):
 									priority = default_priority - i
-									fade = fade_percents[i]
+									fade = fade_percentages[i]
 								if index2 == posmod(index1 - i, frames):
 									priority = default_priority - i
-									fade = fade_percents[i]
+									fade = fade_percentages[i]
 					if c % 3 == 0:
 						if index2 == index1:
 							animation.track_insert_key(track_index, frame_time, material)
