@@ -165,8 +165,6 @@ static func build(map: MapperMap) -> void:
 	animation_player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_PHYSICS
 	animation_player.add_animation_library("", animation_library)
 	animation_player.autoplay = info["autoplay"]
-	if info.get("_use_cache_fix", false):
-		animation_player.set_script(preload("_cache_fix.gd"))
 
 	# creating reset animation for the animation player
 	MapperUtilities.create_reset_animation(animation_player, animation_library)
@@ -268,7 +266,6 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 		animation.loop_mode = data["loop_mode"]
 
 		# creating animation tracks
-		var needs_cache_update := false
 		var track_materials: Dictionary = {}
 		for node_index in range(animation_nodes.size()):
 			var node: Node3D = animation_nodes[node_index][0]
@@ -325,7 +322,6 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 					animation.track_set_imported(track_index, true)
 					if fade_material == null or material == fade_material:
 						animation.track_set_enabled(track_index, false)
-					else: needs_cache_update = true
 					track_index += 1
 
 					var default_priority := material.render_priority
@@ -516,18 +512,6 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 				var collision_shape := node.find_child("CollisionShape3D", false, false)
 				if collision_shape is CollisionShape3D: collision_shape.disabled = false
 				node.visible = true
-
-		if needs_cache_update:
-			animation.add_track(Animation.TYPE_VALUE, 0)
-			animation.track_set_path(0, "AnimationPlayer:update_cache")
-			animation.value_track_set_update_mode(0, Animation.UPDATE_DISCRETE)
-			animation.track_set_interpolation_type(0, Animation.INTERPOLATION_NEAREST)
-			animation.track_set_interpolation_loop_wrap(0, false)
-			animation.track_set_imported(0, true)
-			for index2 in range(frames):
-				var frame_time: float = data["frames"][index2] * data["frame_duration"]
-				animation.track_insert_key(0, frame_time, index2)
-			info["_use_cache_fix"] = true
 
 		# finishing animation and adding it to the library
 		MapperUtilities.remove_repeating_animation_keys(animation)
