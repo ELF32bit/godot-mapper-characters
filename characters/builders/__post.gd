@@ -56,6 +56,7 @@ static func build(map: MapperMap) -> void:
 		animations[name]["fade"] = parameters.get("fade", [])
 		animations[name]["fade_before"] = parameters.get("fade_before", true)
 		animations[name]["fade_after"] = parameters.get("fade_after", false)
+		animations[name]["fade_mode"] = parameters.get("fade_mode", 1)
 
 		animation_nodes.append([child, child.get_meta("_MAPPER_INDEX", 0)])
 		child.remove_meta("_MAPPER_INDEX")
@@ -117,6 +118,13 @@ static func build(map: MapperMap) -> void:
 		mesh_instance.visibility_range_end = info["visibility_end"]
 		collision_shape.disabled = true
 
+		# duplicating mesh instance as fade instance
+		var fade_instance := mesh_instance.duplicate()
+		fade_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		fade_instance.visibility_range_end = info["fade_visibility_end"]
+		fade_instance.name = "FadeInstance3D"
+		fade_instance.visible = false
+
 		# removing nodes that were used for merging
 		for old_node in layer_node.find_children("*", "", true, false):
 			if not is_instance_valid(old_node): continue
@@ -141,9 +149,13 @@ static func build(map: MapperMap) -> void:
 			collision_shape.free()
 			has_collision = false
 		if mesh_instances.size():
+			layer_node.add_child(fade_instance, true)
+			layer_node.move_child(fade_instance, 0)
 			layer_node.add_child(mesh_instance, true)
 			layer_node.move_child(mesh_instance, 0)
-		else: mesh_instance.free()
+		else:
+			mesh_instance.free()
+			fade_instance.free()
 
 		# changing layer node type if collision shape is missing
 		if not has_collision:
@@ -266,7 +278,6 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 		animation.loop_mode = data["loop_mode"]
 
 		# creating animation tracks
-		var track_materials: Dictionary = {}
 		for node_index in range(animation_nodes.size()):
 			var node: Node3D = animation_nodes[node_index][0]
 			var node_path := str(map.node.get_path_to(node))
@@ -281,20 +292,29 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 			animation.track_set_imported(track_index, true)
 			track_index += 1
 
-			var mesh_instance := node.find_child("MeshInstance3D", false, false)
-			if mesh_instance is MeshInstance3D:
-				for surface_index in range(mesh_instance.get_surface_override_material_count()):
-					var material: Material = mesh_instance.get_surface_override_material(surface_index)
-					var is_override_material := true
-					if material == null:
-						material = mesh_instance.get_active_material(surface_index)
-						is_override_material = false
+			if node.find_child("MeshInstance3D", false, false) is MeshInstance3D:
+				animation.add_track(Animation.TYPE_VALUE)
+				animation.track_set_path(track_index, node_path + "/MeshInstance3D:visible")
+				animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
+				animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
+				animation.track_set_interpolation_loop_wrap(track_index, false)
+				animation.track_insert_key(track_index, 0.0, false)
+				animation.track_set_imported(track_index, true)
+				track_index += 1
 
-					# duplicating the original material for each animation
-					material = material.duplicate()
-					if is_override_material:
-						mesh_instance.set_surface_override_material(surface_index, material)
-					else: mesh_instance.mesh.surface_set_material(surface_index, material)
+			var fade_instance := node.find_child("FadeInstance3D", false, false)
+			if fade_instance is MeshInstance3D:
+				animation.add_track(Animation.TYPE_VALUE)
+				animation.track_set_path(track_index, node_path + "/FadeInstance3D:visible")
+				animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
+				animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
+				animation.track_set_interpolation_loop_wrap(track_index, false)
+				animation.track_insert_key(track_index, 0.0, false)
+				animation.track_set_imported(track_index, true)
+				track_index += 1
+
+				for surface_index in range(fade_instance.get_surface_override_material_count()):
+					var material: Material = fade_instance.get_active_material(surface_index)
 
 					# trying to load fade material from material metadata
 					var fade_material = material
@@ -304,31 +324,16 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 							if not fade_material is ShaderMaterial: continue
 							if fade_material.get_shader_parameter(SHADER_FADE_PROPERTY) == null:
 								continue
-					if fade_material != null and material != fade_material:
-						track_materials[track_index] = [material, fade_material.duplicate()]
-					else: track_materials[track_index] = [material, material]
 
-					var material_path := "/MeshInstance3D:surface_material_override/%s"
-					if not is_override_material:
-						material_path = "/MeshInstance3D:mesh:surface_%s/material"
+					# duplicating fade material for each animation
+					fade_material = fade_material.duplicate()
+					fade_instance.set_surface_override_material(surface_index, fade_material)
+					var material_path := "/FadeInstance3D:surface_material_override/%s"
 					material_path = material_path % [surface_index]
 
-					animation.add_track(Animation.TYPE_VALUE)
-					animation.track_set_path(track_index, node_path + material_path)
-					animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
-					animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
-					animation.track_set_interpolation_loop_wrap(track_index, false)
-					animation.track_insert_key(track_index, 0.0, material)
-					animation.track_set_imported(track_index, true)
-					if fade_material == null or material == fade_material:
-						animation.track_set_enabled(track_index, false)
-					track_index += 1
-
-					var default_priority := material.render_priority
-					var priority_path := "/MeshInstance3D:surface_material_override/%s:render_priority"
-					if not is_override_material:
-						priority_path = "/MeshInstance3D:mesh:surface_%s/material:render_priority"
-					priority_path = priority_path % [surface_index]
+					var default_priority: int = fade_material.render_priority
+					var priority_path := "%s:render_priority" % [material_path]
+					var fade_path := "%s:shader_parameter/%s" % [material_path, SHADER_FADE_PROPERTY]
 
 					animation.add_track(Animation.TYPE_VALUE)
 					animation.track_set_path(track_index, node_path + priority_path)
@@ -339,38 +344,31 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 					animation.track_set_imported(track_index, true)
 					track_index += 1
 
-					var fade_path := "/MeshInstance3D:surface_material_override/%s:shader_parameter/%s"
-					if not is_override_material:
-						fade_path = "/MeshInstance3D:mesh:surface_%s/material:shader_parameter/%s"
-					fade_path = fade_path % [surface_index, SHADER_FADE_PROPERTY]
-
 					animation.add_track(Animation.TYPE_VALUE)
 					animation.track_set_path(track_index, node_path + fade_path)
-					animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
-					animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
-					animation.track_set_interpolation_loop_wrap(track_index, false)
+					if data["fade_mode"] == 1:
+						animation.value_track_set_update_mode(track_index, Animation.UPDATE_CONTINUOUS)
+						animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_LINEAR)
+						animation.track_set_interpolation_loop_wrap(track_index, true)
+					elif data["fade_mode"] == 2:
+						animation.value_track_set_update_mode(track_index, Animation.UPDATE_CONTINUOUS)
+						animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_CUBIC)
+						animation.track_set_interpolation_loop_wrap(track_index, true)
+					else:
+						animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
+						animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
+						animation.track_set_interpolation_loop_wrap(track_index, false)
 					animation.track_insert_key(track_index, 0.0, 1.0)
 					animation.track_set_imported(track_index, true)
 					track_index += 1
 
 				animation.add_track(Animation.TYPE_VALUE)
-				animation.track_set_path(track_index, node_path + "/MeshInstance3D:cast_shadow")
+				animation.track_set_path(track_index, node_path + "/FadeInstance3D:transparency")
 				animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
 				animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
 				animation.track_set_interpolation_loop_wrap(track_index, false)
-				animation.track_insert_key(track_index, 0.0, 1)
 				animation.track_set_imported(track_index, true)
-				track_index += 1
-
-				animation.add_track(Animation.TYPE_VALUE)
-				animation.track_set_path(track_index, node_path + "/MeshInstance3D:visibility_range_end")
-				animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
-				animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
-				animation.track_set_interpolation_loop_wrap(track_index, false)
-				animation.track_insert_key(track_index, 0.0, info["visibility_end"])
-				animation.track_set_imported(track_index, true)
-				if info["visibility_end"] == info["fade_visibility_end"]:
-					animation.track_set_enabled(track_index, false)
+				animation.track_set_enabled(track_index, false)
 				track_index += 1
 
 			if node.find_child("CollisionShape3D", false, false) is CollisionShape3D:
@@ -427,23 +425,28 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 								is_visible = true
 				animation.track_insert_key(main_track_index, frame_time, is_visible)
 
-			var cast_shadow_track_path := str(map.node.get_path_to(node)) + "/MeshInstance3D:cast_shadow"
-			var cast_shadow_track_index := animation.find_track(cast_shadow_track_path, Animation.TYPE_VALUE)
-			if not cast_shadow_track_index < 0:
+			var mesh_track_path := str(map.node.get_path_to(node)) + "/MeshInstance3D:visible"
+			var mesh_track_index := animation.find_track(mesh_track_path, Animation.TYPE_VALUE)
+			if not mesh_track_index < 0:
 				for index2 in range(frames):
 					var frame_time: float = data["frames"][index2] * data["frame_duration"]
-					animation.track_insert_key(cast_shadow_track_index, frame_time, bool(index2 == index1))
+					animation.track_insert_key(mesh_track_index, frame_time, bool(index2 == index1))
 
-			var material: Material = null
-			var fade_material: Material = null
+			var fade_track_path := str(map.node.get_path_to(node)) + "/FadeInstance3D:visible"
+			var fade_track_index := animation.find_track(fade_track_path, Animation.TYPE_VALUE)
+			if not fade_track_index < 0:
+				for index2 in range(frames):
+					var frame_time: float = data["frames"][index2] * data["frame_duration"]
+					animation.track_insert_key(fade_track_index, frame_time, bool(index2 != index1))
+
 			var default_priority: int = 0
-			for track_index in range(main_track_index + 1, cast_shadow_track_index):
-				var c: int = track_index - (main_track_index + 1)
-				var track_offset: int = (main_track_index + 1) + int(c / 3.0) * 3
+			var empty_track_path := str(map.node.get_path_to(node)) + "/FadeInstance3D:transparency"
+			var empty_track_index := animation.find_track(empty_track_path, Animation.TYPE_VALUE)
+			for track_index in range(fade_track_index + 1, empty_track_index):
+				var c: int = track_index - (fade_track_index + 1)
+				var track_offset: int = (fade_track_index + 1) + int(c / 2.0) * 2
 				if track_index == track_offset:
-					default_priority = animation.track_get_key_value(track_offset + 1, 0)
-					fade_material = track_materials.get(track_offset, [null, null])[1]
-					material = track_materials.get(track_offset, [null, null])[0]
+					default_priority = animation.track_get_key_value(track_offset + 0, 0)
 
 				for index2 in range(frames):
 					var frame_time: float = data["frames"][index2] * data["frame_duration"]
@@ -479,23 +482,11 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 								if index2 == posmod(index1 - i, frames):
 									priority = default_priority - i
 									fade = fade_percentages[i]
-					if c % 3 == 0:
-						if index2 == index1:
-							animation.track_insert_key(track_index, frame_time, material)
-						else: animation.track_insert_key(track_index, frame_time, fade_material)
-					elif c % 3 == 1: animation.track_insert_key(track_index, frame_time, priority)
-					elif c % 3 == 2: animation.track_insert_key(track_index, frame_time, fade)
+					if c % 2 == 0: animation.track_insert_key(track_index, frame_time, priority)
+					elif c % 2 == 1: animation.track_insert_key(track_index, frame_time, fade)
 
-			var track_path := str(map.node.get_path_to(node)) + "/MeshInstance3D:visibility_range_end"
+			var track_path := str(map.node.get_path_to(node)) + "/CollisionShape3D:disabled"
 			var track_index := animation.find_track(track_path, Animation.TYPE_VALUE)
-			if not track_index < 0:
-				for index2 in range(frames):
-					var frame_time: float = data["frames"][index2] * data["frame_duration"]
-					if index2 == index1: animation.track_insert_key(track_index, frame_time, info["visibility_end"])
-					else: animation.track_insert_key(track_index, frame_time, info["fade_visibility_end"])
-
-			track_path = str(map.node.get_path_to(node)) + "/CollisionShape3D:disabled"
-			track_index = animation.find_track(track_path, Animation.TYPE_VALUE)
 			if not track_index < 0:
 				for index2 in range(frames):
 					var frame_time: float = data["frames"][index2] * data["frame_duration"]
