@@ -1,6 +1,7 @@
 extends MapperUtilities
 
 const SHADER_FADE_PROPERTY: String = "fade"
+const SHADER_FADE_TYPE_PROPERTY: String = "fade_type"
 const FADE_MATERIAL_METADATA: String = "fade_material"
 
 @warning_ignore("unused_parameter")
@@ -115,6 +116,7 @@ static func build(map: MapperMap) -> void:
 		var occluder_instance := _merge_occluder_instances(occluder_instances, transform)
 
 		# setting default properties for the RESET animation
+		mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		mesh_instance.visibility_range_end = info["visibility_end"]
 		collision_shape.disabled = true
 
@@ -122,7 +124,6 @@ static func build(map: MapperMap) -> void:
 		var fade_instance := mesh_instance.duplicate()
 		fade_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		fade_instance.visibility_range_end = info["fade_visibility_end"]
-		fade_instance.name = "FadeInstance3D"
 		fade_instance.visible = false
 
 		# removing nodes that were used for merging
@@ -137,6 +138,13 @@ static func build(map: MapperMap) -> void:
 				change_node_type(old_node, "Node3D")
 			else: old_node.free()
 
+		# manually naming merged nodes to ignore project naming settings
+		mesh_instance.name = "MeshInstance3D"
+		fade_instance.name = "FadeInstance3D"
+		collision_shape.name = "CollisionShape3D"
+		occluder_instance.name = "OccluderInstance3D"
+
+		# adding merged nodes to the layer node
 		var has_collision := true
 		if occluder_instances.size():
 			layer_node.add_child(occluder_instance, true)
@@ -334,6 +342,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 					var default_priority: int = fade_material.render_priority
 					var priority_path := "%s:render_priority" % [material_path]
 					var fade_path := "%s:shader_parameter/%s" % [material_path, SHADER_FADE_PROPERTY]
+					var fade_type_path := "%s:shader_parameter/%s" % [material_path, SHADER_FADE_TYPE_PROPERTY]
 
 					animation.add_track(Animation.TYPE_VALUE)
 					animation.track_set_path(track_index, node_path + priority_path)
@@ -359,6 +368,15 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 						animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
 						animation.track_set_interpolation_loop_wrap(track_index, false)
 					animation.track_insert_key(track_index, 0.0, 1.0)
+					animation.track_set_imported(track_index, true)
+					track_index += 1
+
+					animation.add_track(Animation.TYPE_VALUE)
+					animation.track_set_path(track_index, node_path + fade_type_path)
+					animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
+					animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
+					animation.track_set_interpolation_loop_wrap(track_index, false)
+					animation.track_insert_key(track_index, 0.0, 0.0)
 					animation.track_set_imported(track_index, true)
 					track_index += 1
 
@@ -444,7 +462,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 			var empty_track_index := animation.find_track(empty_track_path, Animation.TYPE_VALUE)
 			for track_index in range(fade_track_index + 1, empty_track_index):
 				var c: int = track_index - (fade_track_index + 1)
-				var track_offset: int = (fade_track_index + 1) + int(c / 2.0) * 2
+				var track_offset: int = (fade_track_index + 1) + int(c / 3.0) * 3
 				if track_index == track_offset:
 					default_priority = animation.track_get_key_value(track_offset + 0, 0)
 
@@ -452,6 +470,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 					var frame_time: float = data["frames"][index2] * data["frame_duration"]
 					var fade_frames_min := 1 + mini(mini(index2, (frames - index2 - 1)), fade_frames)
 					var priority := int(default_priority)
+					var fade_type: float = 0.0
 					var fade: float = 1.0
 					match animation.loop_mode:
 						Animation.LOOP_NONE:
@@ -460,30 +479,41 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 									if i == 0 or data["fade_before"]:
 										priority = default_priority - i
 										fade = fade_percentages[i]
+									if i != 0 and data["fade_before"]:
+										fade_type = -1.0
 								if index2 == (index1 - i):
 									if i == 0 or data["fade_after"]:
 										priority = default_priority - i
 										fade = fade_percentages[i]
+									if i != 0 and data["fade_after"]:
+										fade_type = 1.0
 						Animation.LOOP_LINEAR:
 							for i in range(fade_frames_min):
 								if index2 == posmod(index1 + i, frames):
 									if i == 0 or data["fade_before"]:
 										priority = default_priority - i
 										fade = fade_percentages[i]
+									if i != 0 and data["fade_before"]:
+										fade_type = -1.0
 								if index2 == posmod(index1 - i, frames):
 									if i == 0 or data["fade_after"]:
 										priority = default_priority - i
 										fade = fade_percentages[i]
+									if i != 0 and data["fade_after"]:
+										fade_type = 1.0
 						Animation.LOOP_PINGPONG:
 							for i in range(fade_frames_min):
 								if index2 == posmod(index1 + i, frames):
 									priority = default_priority - i
 									fade = fade_percentages[i]
+									if i != 0: fade_type = -1.0
 								if index2 == posmod(index1 - i, frames):
 									priority = default_priority - i
 									fade = fade_percentages[i]
-					if c % 2 == 0: animation.track_insert_key(track_index, frame_time, priority)
-					elif c % 2 == 1: animation.track_insert_key(track_index, frame_time, fade)
+									if i != 0: fade_type = -1.0
+					if c % 3 == 0: animation.track_insert_key(track_index, frame_time, priority)
+					elif c % 3 == 1: animation.track_insert_key(track_index, frame_time, fade)
+					elif c % 3 == 2: animation.track_insert_key(track_index, frame_time, fade_type)
 
 			var track_path := str(map.node.get_path_to(node)) + "/CollisionShape3D:disabled"
 			var track_index := animation.find_track(track_path, Animation.TYPE_VALUE)

@@ -1,5 +1,6 @@
 [gd_resource type="ShaderMaterial" format=3 uid="uid://dim2gdqw0hftu"]
 
+[ext_resource type="Material" uid="uid://b5mbe5vrco1qv" path="res://characters/materials/fade.tres" id="1_ipait"]
 [ext_resource type="Shader" uid="uid://bk5uv40ta11pm" path="res://characters/shaders/character.gdshader" id="1_y7wwb"]
 
 [resource]
@@ -10,3 +11,4 @@ shader_parameter/wireframe_width_max = 20.0
 shader_parameter/wireframe_scale = 200.0
 shader_parameter/wireframe_pow = 0.0
 shader_parameter/fade = 0.0
+metadata/fade_material = ExtResource("1_ipait")
