@@ -28,4 +28,4 @@ Depth prepass is disabled in **Mobile** renderer, so there is a workaround.<br>
 Override materials can provide **`fade_material`** metadata with a simpler transparency.<br>
 If the override material provides such metadata, then it itself should not use **`fade`** property.<br>
 The animation system will then use different materials for the character and the after-images.<br>
-However, animation player gets confused when switching mesh materials during the playback.<br>
+However, [animation player cache interferes](https://github.com/godotengine/godot/issues/34335) with switching mesh materials during the playback.<br>
