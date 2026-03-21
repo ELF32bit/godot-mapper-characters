@@ -25,8 +25,12 @@ static func build(map: MapperMap) -> void:
 	var animation_info := MapperEntity.new()
 	if map.classnames.has("info_animation"):
 		animation_info = map.classnames.get("info_animation", [null])[0]
-	var autoplay: String = animation_info.get_string_property("autoplay", "")
-	autoplay = autoplay.to_lower()
+
+	# reading simple properties from info_animation entity
+	var info: Dictionary = {}
+	info["autoplay"] = animation_info.get_string_property("autoplay", "").to_lower()
+	info["fade_visibility_end"] = animation_info.get_unit_property("fade_visibility_end", 0.0)
+	info["visibility_end"] = animation_info.get_unit_property("visibility_end", 0.0)
 
 	# parsing unsorted animations from map layers
 	var animations: Dictionary = {}
@@ -46,12 +50,12 @@ static func build(map: MapperMap) -> void:
 		animations[name]["max_frame"] = maxf(frame, max_frame)
 
 		# reading animation parameters from info_animation entity
-		var info: Dictionary = animation_info.get_variant_property(split[0], {})
-		animations[name]["frame_duration"] = info.get("frame_duration", 0.2)
-		animations[name]["loop_mode"] = info.get("loop_mode", 1)
-		animations[name]["fade"] = info.get("fade", [])
-		animations[name]["fade_before"] = info.get("fade_before", true)
-		animations[name]["fade_after"] = info.get("fade_after", false)
+		var parameters: Dictionary = animation_info.get_variant_property(split[0], {})
+		animations[name]["frame_duration"] = parameters.get("frame_duration", 0.2)
+		animations[name]["loop_mode"] = parameters.get("loop_mode", 1)
+		animations[name]["fade"] = parameters.get("fade", [])
+		animations[name]["fade_before"] = parameters.get("fade_before", true)
+		animations[name]["fade_after"] = parameters.get("fade_after", false)
 
 		animation_nodes.append([child, child.get_meta("_MAPPER_INDEX", 0)])
 		child.remove_meta("_MAPPER_INDEX")
@@ -108,8 +112,12 @@ static func build(map: MapperMap) -> void:
 		var mesh_instance := _merge_mesh_instances(mesh_instances, transform)
 		var collision_shape := _merge_collision_shapes(collision_shapes, transform)
 		var occluder_instance := _merge_occluder_instances(occluder_instances, transform)
+
+		# setting default properties for the RESET animation
+		mesh_instance.visibility_range_end = info["visibility_end"]
 		collision_shape.disabled = true
 
+		# removing nodes that were used for merging
 		for old_node in layer_node.find_children("*", "", true, false):
 			if not is_instance_valid(old_node): continue
 			if not old_node.get_meta("_MAPPER_MERGE", false): continue
@@ -137,6 +145,7 @@ static func build(map: MapperMap) -> void:
 			layer_node.move_child(mesh_instance, 0)
 		else: mesh_instance.free()
 
+		# changing layer node type if collision shape is missing
 		if not has_collision:
 			var new_layer_node := change_node_type(layer_node, "Node3D")
 			for name in animations:
@@ -152,10 +161,10 @@ static func build(map: MapperMap) -> void:
 
 	# creating animation library for the animation player
 	var animation_library := AnimationLibrary.new()
-	_create_animation_table(map, animations, animation_nodes, animation_library, autoplay)
+	_create_animation_table(map, animations, animation_nodes, animation_library, info)
 	animation_player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_PHYSICS
 	animation_player.add_animation_library("", animation_library)
-	animation_player.autoplay = autoplay
+	animation_player.autoplay = info["autoplay"]
 
 	# creating reset animation for the animation player
 	MapperUtilities.create_reset_animation(animation_player, animation_library)
@@ -241,12 +250,12 @@ static func _merge_occluder_instances(occluder_instances: Array, inverse_transfo
 	return occluder_instance
 
 
-static func _create_animation_table(map: MapperMap, animations: Dictionary, animation_nodes: Array, animation_library: AnimationLibrary, autoplay: String) -> void:
+static func _create_animation_table(map: MapperMap, animations: Dictionary, animation_nodes: Array, animation_library: AnimationLibrary, info: Dictionary) -> void:
 	# creating animations
 	for name in animations:
 		var data: Dictionary = animations[name]
-		var is_autoplay := bool(name == autoplay)
 		var has_frames := float(data["max_frame"] > 0.0)
+		var is_autoplay := bool(name == info["autoplay"])
 		var fade_percentages: Array = [0.0] + data["fade"]
 		var fade_frames: int = data["fade"].size()
 		var frames: int = data["frames"].size()
@@ -353,6 +362,17 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 				animation.track_set_imported(track_index, true)
 				track_index += 1
 
+				animation.add_track(Animation.TYPE_VALUE)
+				animation.track_set_path(track_index, node_path + "/MeshInstance3D:visibility_range_end")
+				animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
+				animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
+				animation.track_set_interpolation_loop_wrap(track_index, false)
+				animation.track_insert_key(track_index, 0.0, info["visibility_end"])
+				animation.track_set_imported(track_index, true)
+				if info["visibility_end"] == info["fade_visibility_end"]:
+					animation.track_set_enabled(track_index, false)
+				track_index += 1
+
 			if node.find_child("CollisionShape3D", false, false) is CollisionShape3D:
 				animation.add_track(Animation.TYPE_VALUE)
 				animation.track_set_path(track_index, node_path + "/CollisionShape3D:disabled")
@@ -412,7 +432,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 			if not cast_shadow_track_index < 0:
 				for index2 in range(frames):
 					var frame_time: float = data["frames"][index2] * data["frame_duration"]
-					animation.track_insert_key(cast_shadow_track_index, frame_time, bool(index1 == index2))
+					animation.track_insert_key(cast_shadow_track_index, frame_time, bool(index2 == index1))
 
 			var material: Material = null
 			var fade_material: Material = null
@@ -466,19 +486,27 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 					elif c % 3 == 1: animation.track_insert_key(track_index, frame_time, priority)
 					elif c % 3 == 2: animation.track_insert_key(track_index, frame_time, fade)
 
-			var track_path := str(map.node.get_path_to(node)) + "/CollisionShape3D:disabled"
+			var track_path := str(map.node.get_path_to(node)) + "/MeshInstance3D:visibility_range_end"
 			var track_index := animation.find_track(track_path, Animation.TYPE_VALUE)
 			if not track_index < 0:
 				for index2 in range(frames):
 					var frame_time: float = data["frames"][index2] * data["frame_duration"]
-					animation.track_insert_key(track_index, frame_time, not bool(index1 == index2))
+					if index2 == index1: animation.track_insert_key(track_index, frame_time, info["visibility_end"])
+					else: animation.track_insert_key(track_index, frame_time, info["fade_visibility_end"])
+
+			track_path = str(map.node.get_path_to(node)) + "/CollisionShape3D:disabled"
+			track_index = animation.find_track(track_path, Animation.TYPE_VALUE)
+			if not track_index < 0:
+				for index2 in range(frames):
+					var frame_time: float = data["frames"][index2] * data["frame_duration"]
+					animation.track_insert_key(track_index, frame_time, not bool(index2 == index1))
 
 			track_path = str(map.node.get_path_to(node)) + "/OccluderInstance3D:visible"
 			track_index = animation.find_track(track_path, Animation.TYPE_VALUE)
 			if not track_index < 0:
 				for index2 in range(frames):
 					var frame_time: float = data["frames"][index2] * data["frame_duration"]
-					animation.track_insert_key(track_index, frame_time, bool(index1 == index2))
+					animation.track_insert_key(track_index, frame_time, bool(index2 == index1))
 
 			if (index1 == 0 and is_autoplay):
 				var collision_shape := node.find_child("CollisionShape3D", false, false)

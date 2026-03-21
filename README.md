@@ -10,7 +10,11 @@ The build system will then construct the animation table that switches visibilit
 * **`fade`** is an array of fade percentages like [0.5, 0.75, 0.9] for previous frames.
 * **`fade_before`** set to False will disable after-images of previous frames.
 * **`fade_after`** set to True will enable after-images for future frames.
-* **`autoplay`** animation is <ins>declared as `info_animation` property</ins>.
+
+`info_animation` also supports the specified properties.<br>
+* **`autoplay`** animation name will be used as the default animation.
+* **`fade_visibility_end`** distance after which after-images will be hidden.
+* **`visibility_end`** distance in units. 0 is default, meaning disabled.
 
 Animation layers can contain special point and brush entities.<br>
 For example, certain frames might need hit boxes or moving lights.<br>
