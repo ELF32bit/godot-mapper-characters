@@ -25,8 +25,8 @@ All other layers will be parsed as the global **`STORAGE`** node.<br>
 Characters must use override shader materials with **`fade`** property from 0 to 1.<br>
 Additionally, the materials can implement **`fade_type`** property -1 (before), 1 (after).<br>
 Furthemore, the materials need to have **`depth_prepass_alpha`** render mode.<br>
-Depth prepass is disabled in **Mobile** renderer, so there is a workaround.<br>
 <br>
+Depth prepass is disabled in **Mobile** renderer, so there is a workaround.<br>
 Override materials can provide **`fade_material`** metadata with a simpler transparency.<br>
 If the override material provides such metadata, then it itself should not use **`fade`** property.<br>
 The animation system will then use different materials for the character and the after-images.<br>

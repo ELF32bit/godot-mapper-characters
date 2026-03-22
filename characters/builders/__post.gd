@@ -119,6 +119,9 @@ static func build(map: MapperMap) -> void:
 		mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		mesh_instance.visibility_range_end = info["visibility_end"]
 		collision_shape.disabled = true
+		for other_node in layer_node.find_children("*", "CollisionShape3D", true, false):
+			if other_node.disabled: other_node.set_meta("_MAPPER_DISABLED", true)
+			other_node.disabled = true
 
 		# duplicating mesh instance as fade instance
 		var fade_instance := mesh_instance.duplicate()
@@ -164,6 +167,14 @@ static func build(map: MapperMap) -> void:
 		else:
 			mesh_instance.free()
 			fade_instance.free()
+
+		# setting visibility parent for all other nodes in the layer
+		if is_instance_valid(mesh_instance):
+			for other_node in layer_node.get_children():
+				if not other_node is Node3D: continue
+				if other_node.name in ["MeshInstance3D", "FadeInstance3D",
+					"CollisionShape3D", "OccluderInstance3D"]: continue
+				other_node.visibility_parent = other_node.get_path_to(mesh_instance)
 
 		# changing layer node type if collision shape is missing
 		if not has_collision:
@@ -291,6 +302,11 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 			var node_path := str(map.node.get_path_to(node))
 			var track_index := animation.get_track_count()
 
+			var mesh_instance := node.find_child("MeshInstance3D", false, false)
+			var fade_instance := node.find_child("FadeInstance3D", false, false)
+			var collision_shape := node.find_child("CollisionShape3D", false, false)
+			var occluder_instance := node.find_child("OccluderInstance3D", false, false)
+
 			animation.add_track(Animation.TYPE_VALUE)
 			animation.track_set_path(track_index, node_path + ":visible")
 			animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
@@ -300,9 +316,24 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 			animation.track_set_imported(track_index, true)
 			track_index += 1
 
-			if node.find_child("MeshInstance3D", false, false) is MeshInstance3D:
+			animation.add_track(Animation.TYPE_VALUE)
+			if not mesh_instance is MeshInstance3D:
+				animation.track_set_enabled(track_index, false)
+			animation.track_set_path(track_index, node_path + "/MeshInstance3D:visible")
+			animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
+			animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
+			animation.track_set_interpolation_loop_wrap(track_index, false)
+			animation.track_insert_key(track_index, 0.0, false)
+			animation.track_set_imported(track_index, true)
+			track_index += 1
+
+			for child in node.get_children():
+				if not child is Node3D: continue
+				if child.name in ["MeshInstance3D", "FadeInstance3D",
+					"CollisionShape3D", "OccluderInstance3D"]: continue
+				if not child.visible: continue
 				animation.add_track(Animation.TYPE_VALUE)
-				animation.track_set_path(track_index, node_path + "/MeshInstance3D:visible")
+				animation.track_set_path(track_index, node_path + "/%s:visible" % [child.name])
 				animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
 				animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
 				animation.track_set_interpolation_loop_wrap(track_index, false)
@@ -310,17 +341,18 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 				animation.track_set_imported(track_index, true)
 				track_index += 1
 
-			var fade_instance := node.find_child("FadeInstance3D", false, false)
+			animation.add_track(Animation.TYPE_VALUE)
+			if not fade_instance is MeshInstance3D:
+				animation.track_set_enabled(track_index, false)
+			animation.track_set_path(track_index, node_path + "/FadeInstance3D:visible")
+			animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
+			animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
+			animation.track_set_interpolation_loop_wrap(track_index, false)
+			animation.track_insert_key(track_index, 0.0, false)
+			animation.track_set_imported(track_index, true)
+			track_index += 1
+
 			if fade_instance is MeshInstance3D:
-				animation.add_track(Animation.TYPE_VALUE)
-				animation.track_set_path(track_index, node_path + "/FadeInstance3D:visible")
-				animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
-				animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
-				animation.track_set_interpolation_loop_wrap(track_index, false)
-				animation.track_insert_key(track_index, 0.0, false)
-				animation.track_set_imported(track_index, true)
-				track_index += 1
-
 				for surface_index in range(fade_instance.get_surface_override_material_count()):
 					var material: Material = fade_instance.get_active_material(surface_index)
 
@@ -380,26 +412,49 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 					animation.track_set_imported(track_index, true)
 					track_index += 1
 
-				animation.add_track(Animation.TYPE_VALUE)
-				animation.track_set_path(track_index, node_path + "/FadeInstance3D:transparency")
-				animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
-				animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
-				animation.track_set_interpolation_loop_wrap(track_index, false)
-				animation.track_set_imported(track_index, true)
+			animation.add_track(Animation.TYPE_VALUE)
+			animation.track_set_path(track_index, node_path + "/FadeInstance3D:top_level")
+			animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
+			animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
+			animation.track_set_interpolation_loop_wrap(track_index, false)
+			animation.track_set_imported(track_index, true)
+			animation.track_set_enabled(track_index, false)
+			track_index += 1
+
+			animation.add_track(Animation.TYPE_VALUE)
+			if not collision_shape is CollisionShape3D:
 				animation.track_set_enabled(track_index, false)
-				track_index += 1
+			animation.track_set_path(track_index, node_path + "/CollisionShape3D:disabled")
+			animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
+			animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
+			animation.track_set_interpolation_loop_wrap(track_index, false)
+			animation.track_insert_key(track_index, 0.0, true)
+			animation.track_set_imported(track_index, true)
+			track_index += 1
 
-			if node.find_child("CollisionShape3D", false, false) is CollisionShape3D:
+			for child in node.find_children("*", "CollisionShape3D", true, false):
+				if child == collision_shape: continue
+				if child.get_meta("_MAPPER_DISABLED", false): continue
 				animation.add_track(Animation.TYPE_VALUE)
-				animation.track_set_path(track_index, node_path + "/CollisionShape3D:disabled")
+				animation.track_set_path(track_index, str(map.node.get_path_to(child)) + ":disabled")
 				animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
 				animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
 				animation.track_set_interpolation_loop_wrap(track_index, false)
-				animation.track_insert_key(track_index, 0.0, true)
+				animation.track_insert_key(track_index, 0.0, false)
 				animation.track_set_imported(track_index, true)
 				track_index += 1
 
-			if node.find_child("OccluderInstance3D", false, false) is OccluderInstance3D:
+			animation.add_track(Animation.TYPE_VALUE)
+			animation.track_set_path(track_index, node_path + "/CollisionShape3D:top_level")
+			animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
+			animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
+			animation.track_set_interpolation_loop_wrap(track_index, false)
+			animation.track_set_imported(track_index, true)
+			animation.track_set_enabled(track_index, false)
+			animation.track_set_enabled(track_index, false)
+			track_index += 1
+
+			if occluder_instance is OccluderInstance3D:
 				animation.add_track(Animation.TYPE_VALUE)
 				animation.track_set_path(track_index, node_path + "/OccluderInstance3D:visible")
 				animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
@@ -443,6 +498,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 								is_visible = true
 				animation.track_insert_key(main_track_index, frame_time, is_visible)
 
+			# inserting mesh instance track keys
 			var mesh_track_path := str(map.node.get_path_to(node)) + "/MeshInstance3D:visible"
 			var mesh_track_index := animation.find_track(mesh_track_path, Animation.TYPE_VALUE)
 			if not mesh_track_index < 0:
@@ -450,6 +506,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 					var frame_time: float = data["frames"][index2] * data["frame_duration"]
 					animation.track_insert_key(mesh_track_index, frame_time, bool(index2 == index1))
 
+			# inserting fade instance track keys
 			var fade_track_path := str(map.node.get_path_to(node)) + "/FadeInstance3D:visible"
 			var fade_track_index := animation.find_track(fade_track_path, Animation.TYPE_VALUE)
 			if not fade_track_index < 0:
@@ -457,82 +514,121 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 					var frame_time: float = data["frames"][index2] * data["frame_duration"]
 					animation.track_insert_key(fade_track_index, frame_time, bool(index2 != index1))
 
-			var default_priority: int = 0
-			var empty_track_path := str(map.node.get_path_to(node)) + "/FadeInstance3D:transparency"
-			var empty_track_index := animation.find_track(empty_track_path, Animation.TYPE_VALUE)
-			for track_index in range(fade_track_index + 1, empty_track_index):
-				var c: int = track_index - (fade_track_index + 1)
-				var track_offset: int = (fade_track_index + 1) + int(c / 3.0) * 3
-				if track_index == track_offset:
-					default_priority = animation.track_get_key_value(track_offset + 0, 0)
+			# inserting visibility tracks keys for other nodes
+			if not mesh_track_index < 0 and not fade_track_index < 0:
+				for track_index in range(mesh_track_index + 1, fade_track_index):
+					for index2 in range(frames):
+						var frame_time: float = data["frames"][index2] * data["frame_duration"]
+						animation.track_insert_key(track_index, frame_time, bool(index2 == index1))
 
+			# inserting fade instance shader material tracks keys
+			if not mesh_track_index < 0 and not fade_track_index < 0:
+				var default_priority: int = 0
+				var empty_track_path := str(map.node.get_path_to(node)) + "/FadeInstance3D:top_level"
+				var empty_track_index := animation.find_track(empty_track_path, Animation.TYPE_VALUE)
+				for track_index in range(fade_track_index + 1, empty_track_index):
+					var c: int = track_index - (fade_track_index + 1)
+					var track_offset: int = (fade_track_index + 1) + int(c / 3.0) * 3
+					if track_index == track_offset:
+						default_priority = animation.track_get_key_value(track_offset + 0, 0)
+
+					for index2 in range(frames):
+						var frame_time: float = data["frames"][index2] * data["frame_duration"]
+						var fade_frames_min := 1 + mini(mini(index2, (frames - index2 - 1)), fade_frames)
+						var priority := int(default_priority)
+						var fade_type: float = 0.0
+						var fade: float = 1.0
+						match animation.loop_mode:
+							Animation.LOOP_NONE:
+								for i in range(fade_frames_min):
+									if index2 == (index1 + i):
+										if i == 0 or data["fade_before"]:
+											priority = default_priority - i
+											fade = fade_percentages[i]
+										if i != 0 and data["fade_before"]:
+											fade_type = -1.0
+									if index2 == (index1 - i):
+										if i == 0 or data["fade_after"]:
+											priority = default_priority - i
+											fade = fade_percentages[i]
+										if i != 0 and data["fade_after"]:
+											fade_type = 1.0
+							Animation.LOOP_LINEAR:
+								for i in range(fade_frames_min):
+									if index2 == posmod(index1 + i, frames):
+										if i == 0 or data["fade_before"]:
+											priority = default_priority - i
+											fade = fade_percentages[i]
+										if i != 0 and data["fade_before"]:
+											fade_type = -1.0
+									if index2 == posmod(index1 - i, frames):
+										if i == 0 or data["fade_after"]:
+											priority = default_priority - i
+											fade = fade_percentages[i]
+										if i != 0 and data["fade_after"]:
+											fade_type = 1.0
+							Animation.LOOP_PINGPONG:
+								for i in range(fade_frames_min):
+									if index2 == posmod(index1 + i, frames):
+										priority = default_priority - i
+										fade = fade_percentages[i]
+										if i != 0: fade_type = -1.0
+									if index2 == posmod(index1 - i, frames):
+										priority = default_priority - i
+										fade = fade_percentages[i]
+										if i != 0: fade_type = -1.0
+						if c % 3 == 0: animation.track_insert_key(track_index, frame_time, priority)
+						elif c % 3 == 1: animation.track_insert_key(track_index, frame_time, fade)
+						elif c % 3 == 2: animation.track_insert_key(track_index, frame_time, fade_type)
+
+			# inserting collision shape track keys
+			var collision_track_path := str(map.node.get_path_to(node)) + "/CollisionShape3D:disabled"
+			var collision_track_index := animation.find_track(collision_track_path, Animation.TYPE_VALUE)
+			if not collision_track_index < 0:
 				for index2 in range(frames):
 					var frame_time: float = data["frames"][index2] * data["frame_duration"]
-					var fade_frames_min := 1 + mini(mini(index2, (frames - index2 - 1)), fade_frames)
-					var priority := int(default_priority)
-					var fade_type: float = 0.0
-					var fade: float = 1.0
-					match animation.loop_mode:
-						Animation.LOOP_NONE:
-							for i in range(fade_frames_min):
-								if index2 == (index1 + i):
-									if i == 0 or data["fade_before"]:
-										priority = default_priority - i
-										fade = fade_percentages[i]
-									if i != 0 and data["fade_before"]:
-										fade_type = -1.0
-								if index2 == (index1 - i):
-									if i == 0 or data["fade_after"]:
-										priority = default_priority - i
-										fade = fade_percentages[i]
-									if i != 0 and data["fade_after"]:
-										fade_type = 1.0
-						Animation.LOOP_LINEAR:
-							for i in range(fade_frames_min):
-								if index2 == posmod(index1 + i, frames):
-									if i == 0 or data["fade_before"]:
-										priority = default_priority - i
-										fade = fade_percentages[i]
-									if i != 0 and data["fade_before"]:
-										fade_type = -1.0
-								if index2 == posmod(index1 - i, frames):
-									if i == 0 or data["fade_after"]:
-										priority = default_priority - i
-										fade = fade_percentages[i]
-									if i != 0 and data["fade_after"]:
-										fade_type = 1.0
-						Animation.LOOP_PINGPONG:
-							for i in range(fade_frames_min):
-								if index2 == posmod(index1 + i, frames):
-									priority = default_priority - i
-									fade = fade_percentages[i]
-									if i != 0: fade_type = -1.0
-								if index2 == posmod(index1 - i, frames):
-									priority = default_priority - i
-									fade = fade_percentages[i]
-									if i != 0: fade_type = -1.0
-					if c % 3 == 0: animation.track_insert_key(track_index, frame_time, priority)
-					elif c % 3 == 1: animation.track_insert_key(track_index, frame_time, fade)
-					elif c % 3 == 2: animation.track_insert_key(track_index, frame_time, fade_type)
+					animation.track_insert_key(collision_track_index, frame_time, not bool(index2 == index1))
 
-			var track_path := str(map.node.get_path_to(node)) + "/CollisionShape3D:disabled"
-			var track_index := animation.find_track(track_path, Animation.TYPE_VALUE)
-			if not track_index < 0:
+			# inserting collision shape tracks keys for other nodes
+			var empty_track_path2 := str(map.node.get_path_to(node)) + "/CollisionShape3D:top_level"
+			var empty_track_index2 := animation.find_track(empty_track_path2, Animation.TYPE_VALUE)
+			if not collision_track_index < 0 and not empty_track_index2 < 0:
+				for track_index in range(collision_track_index + 1, empty_track_index2):
+					for index2 in range(frames):
+						var frame_time: float = data["frames"][index2] * data["frame_duration"]
+						animation.track_insert_key(track_index, frame_time, bool(index2 != index1))
+
+			# inserting occluder instance track keys
+			var occluder_track_path := str(map.node.get_path_to(node)) + "/OccluderInstance3D:visible"
+			var occluder_track_index := animation.find_track(occluder_track_path, Animation.TYPE_VALUE)
+			if not occluder_track_index < 0:
 				for index2 in range(frames):
 					var frame_time: float = data["frames"][index2] * data["frame_duration"]
-					animation.track_insert_key(track_index, frame_time, not bool(index2 == index1))
+					animation.track_insert_key(occluder_track_index, frame_time, bool(index2 == index1))
 
-			track_path = str(map.node.get_path_to(node)) + "/OccluderInstance3D:visible"
-			track_index = animation.find_track(track_path, Animation.TYPE_VALUE)
-			if not track_index < 0:
-				for index2 in range(frames):
-					var frame_time: float = data["frames"][index2] * data["frame_duration"]
-					animation.track_insert_key(track_index, frame_time, bool(index2 == index1))
-
+			# enabling autoplay nodes
 			if (index1 == 0 and is_autoplay):
 				var collision_shape := node.find_child("CollisionShape3D", false, false)
 				if collision_shape is CollisionShape3D: collision_shape.disabled = false
+				for child in node.find_children("*", "CollisionShape3D", true, false):
+					if child == collision_shape: continue
+					if child.get_meta("_MAPPER_DISABLED", false): continue
+					child.disabled = false
 				node.visible = true
+
+			# clearing some leftover metadata
+			for child in node.find_children("*", "CollisionShape3D", true, false):
+				if child.has_meta("_MAPPER_DISABLED"): child.remove_meta("_MAPPER_DISABLED")
+
+		# removing empty tracks
+		var removed_tracks: int = 0
+		var tracks_to_remove: Array = []
+		for track_index in animation.get_track_count():
+			if not animation.track_is_enabled(track_index):
+				tracks_to_remove.append(track_index)
+		for track_index in tracks_to_remove:
+			animation.remove_track(track_index - removed_tracks)
+			removed_tracks += 1
 
 		# finishing animation and adding it to the library
 		MapperUtilities.remove_repeating_animation_keys(animation)

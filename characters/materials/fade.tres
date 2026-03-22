@@ -3,6 +3,8 @@
 [ext_resource type="Shader" uid="uid://dweh5jnnmp7ip" path="res://characters/shaders/fade.gdshader" id="1_kbpmg"]
 
 [resource]
+resource_local_to_scene = true
 render_priority = 0
 shader = ExtResource("1_kbpmg")
 shader_parameter/fade = 0.0
+shader_parameter/fade_type = 0.0
