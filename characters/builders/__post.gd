@@ -190,10 +190,16 @@ static func build(map: MapperMap) -> void:
 	map.node.add_child(animation_player, true)
 	map.node.move_child(animation_player, 0)
 
+	# moving animation player to the physics process if collision shapes are present
+	for index in range(animation_nodes.size()):
+		var layer_node: Node3D = animation_nodes[index][0]
+		if not layer_node.find_children("*", "CollisionShape3D", true, false).size(): continue
+		animation_player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_PHYSICS
+		break
+
 	# creating animation library for the animation player
 	var animation_library := AnimationLibrary.new()
 	_create_animation_table(map, animations, animation_nodes, animation_library, info)
-	animation_player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_PHYSICS
 	animation_player.add_animation_library("", animation_library)
 	animation_player.autoplay = info["autoplay"]
 
