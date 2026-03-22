@@ -23,7 +23,7 @@ All other layers will be parsed as the global **`STORAGE`** node.<br>
 
 ## Transparent after-images
 Characters must use override shader materials with **`fade`** property from 0 to 1.<br>
-Additionally, the materials can implement **`fade_type`** property -1 (before), 1 (after).<br>
+Additionally, the materials can implement **`fade_index`** property <0 (before), >0 (after).<br>
 Furthemore, the materials need to have **`depth_prepass_alpha`** render mode.<br>
 <br>
 Depth prepass is disabled in **Mobile** renderer, so there is a workaround.<br>

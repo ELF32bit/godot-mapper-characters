@@ -1,7 +1,7 @@
 extends MapperUtilities
 
 const SHADER_FADE_PROPERTY: String = "fade"
-const SHADER_FADE_TYPE_PROPERTY: String = "fade_type"
+const SHADER_FADE_INDEX_PROPERTY: String = "fade_index"
 const FADE_MATERIAL_METADATA: String = "fade_material"
 
 @warning_ignore("unused_parameter")
@@ -374,7 +374,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 					var default_priority: int = fade_material.render_priority
 					var priority_path := "%s:render_priority" % [material_path]
 					var fade_path := "%s:shader_parameter/%s" % [material_path, SHADER_FADE_PROPERTY]
-					var fade_type_path := "%s:shader_parameter/%s" % [material_path, SHADER_FADE_TYPE_PROPERTY]
+					var fade_index_path := "%s:shader_parameter/%s" % [material_path, SHADER_FADE_INDEX_PROPERTY]
 
 					animation.add_track(Animation.TYPE_VALUE)
 					animation.track_set_path(track_index, node_path + priority_path)
@@ -404,7 +404,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 					track_index += 1
 
 					animation.add_track(Animation.TYPE_VALUE)
-					animation.track_set_path(track_index, node_path + fade_type_path)
+					animation.track_set_path(track_index, node_path + fade_index_path)
 					animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
 					animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
 					animation.track_set_interpolation_loop_wrap(track_index, false)
@@ -536,7 +536,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 						var frame_time: float = data["frames"][index2] * data["frame_duration"]
 						var fade_frames_min := 1 + mini(mini(index2, (frames - index2 - 1)), fade_frames)
 						var priority := int(default_priority)
-						var fade_type: float = 0.0
+						var fade_index: float = 0.0
 						var fade: float = 1.0
 						match animation.loop_mode:
 							Animation.LOOP_NONE:
@@ -546,13 +546,13 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 											priority = default_priority - i
 											fade = fade_percentages[i]
 										if i != 0 and data["fade_before"]:
-											fade_type = -1.0
+											fade_index = float(-i)
 									if index2 == (index1 - i):
 										if i == 0 or data["fade_after"]:
 											priority = default_priority - i
 											fade = fade_percentages[i]
 										if i != 0 and data["fade_after"]:
-											fade_type = 1.0
+											fade_index = float(i)
 							Animation.LOOP_LINEAR:
 								for i in range(fade_frames_min):
 									if index2 == posmod(index1 + i, frames):
@@ -560,26 +560,26 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 											priority = default_priority - i
 											fade = fade_percentages[i]
 										if i != 0 and data["fade_before"]:
-											fade_type = -1.0
+											fade_index = float(-i)
 									if index2 == posmod(index1 - i, frames):
 										if i == 0 or data["fade_after"]:
 											priority = default_priority - i
 											fade = fade_percentages[i]
 										if i != 0 and data["fade_after"]:
-											fade_type = 1.0
+											fade_index = float(i)
 							Animation.LOOP_PINGPONG:
 								for i in range(fade_frames_min):
 									if index2 == posmod(index1 + i, frames):
 										priority = default_priority - i
 										fade = fade_percentages[i]
-										if i != 0: fade_type = -1.0
+										if i != 0: fade_index = float(-i)
 									if index2 == posmod(index1 - i, frames):
 										priority = default_priority - i
 										fade = fade_percentages[i]
-										if i != 0: fade_type = -1.0
+										if i != 0: fade_index = float(-i)
 						if c % 3 == 0: animation.track_insert_key(track_index, frame_time, priority)
 						elif c % 3 == 1: animation.track_insert_key(track_index, frame_time, fade)
-						elif c % 3 == 2: animation.track_insert_key(track_index, frame_time, fade_type)
+						elif c % 3 == 2: animation.track_insert_key(track_index, frame_time, fade_index)
 
 			# inserting collision shape track keys
 			var collision_track_path := str(map.node.get_path_to(node)) + "/CollisionShape3D:disabled"
