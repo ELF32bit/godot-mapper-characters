@@ -21,6 +21,8 @@ The build system will then construct the animation table that switches visibilit
 * **`fade_visibility_end`** distance after which after-images will be hidden.
 * **`visibility_end`** distance in units. 0 is default, meaning disabled.
 
+> Groups from the **Default Layer** with animation names will also be parsed as frames.
+
 Animation layers can contain specially constructed point and brush entities.<br>
 For example, certain frames might need hit boxes or moving lights.<br>
 All other layers will be parsed as the global **`STORAGE`** node.<br>

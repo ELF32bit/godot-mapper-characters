@@ -65,19 +65,10 @@ static func build(map: MapperMap) -> void:
 		child.remove_meta("_MAPPER_INDEX")
 		layers.remove_child(child)
 
-	# replacing layer nodes that failed to parse as animations
-	for layer in layers.get_children():
-		if not layer.get_children().size(): layer.free()
-		elif layer.get_meta("_MAPPER_EMPTY", false):
-			layer.remove_meta("_MAPPER_EMPTY")
-			change_node_type(layer, "Node3D")
-	if not layers.get_children().size():
-		layers.free()
-
 	# sorting animations
-	for animation_name in animations:
-		var old_nodes: Array = animations[animation_name]["nodes"]
-		var old_frames: Array = animations[animation_name]["frames"]
+	for name in animations:
+		var old_nodes: Array = animations[name]["nodes"]
+		var old_frames: Array = animations[name]["frames"]
 		var sorting: Array = []
 		for index in range(old_frames.size()):
 			sorting.append([old_nodes[index], old_frames[index]])
@@ -88,8 +79,8 @@ static func build(map: MapperMap) -> void:
 		for index in range(sorting.size()):
 			new_nodes.append(sorting[index][0])
 			new_frames.append(sorting[index][1])
-		animations[animation_name]["nodes"] = new_nodes
-		animations[animation_name]["frames"] = new_frames
+		animations[name]["nodes"] = new_nodes
+		animations[name]["frames"] = new_frames
 
 	# sorting animation nodes by TB layer index and hiding them
 	animation_nodes.sort_custom(func(a, b): return a[1] < b[1])
@@ -184,13 +175,31 @@ static func build(map: MapperMap) -> void:
 			for name in animations:
 				# DANGER: searching array for the node that has been freed
 				var i: int = animations[name]["nodes"].find(layer_node)
-				animations[name]["nodes"][i] = new_layer_node
+				if not i < 0: animations[name]["nodes"][i] = new_layer_node
 			animation_nodes[index] = [new_layer_node, node[1]]
+
+	# removing empty group nodes from the map
+	for group_node in map.node.find_children("*", "", true, false):
+		if not is_instance_valid(group_node): continue
+		if not group_node.get_meta("_MAPPER_GROUP", false): continue
+		if group_node.get_children().size():
+			group_node.remove_meta("_MAPPER_GROUP")
+		else: group_node.free()
+
+	# replacing layer nodes that failed to parse as animations
+	for layer_node in layers.get_children():
+		if not layer_node.get_children().size(): layer_node.free()
+		elif layer_node.get_meta("_MAPPER_EMPTY", false):
+			layer_node.remove_meta("_MAPPER_EMPTY")
+			change_node_type(layer_node, "Node3D")
+	if not layers.get_children().size():
+		layers.free()
 
 	# creating animation player
 	var animation_player := AnimationPlayer.new()
 	map.node.add_child(animation_player, true)
 	map.node.move_child(animation_player, 0)
+	animation_player.name = "ANIMATIONS"
 
 	# moving animation player to the physics process if collision shapes are present
 	for index in range(animation_nodes.size()):

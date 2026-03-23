@@ -38,6 +38,7 @@ static func build(map: MapperMap, entity: MapperEntity) -> Node:
 		node.set_meta("_MAPPER_EMPTY", true)
 	elif not node:
 		node = Node3D.new()
+		node.set_meta("_MAPPER_GROUP", true)
 
 	# returning group node with TB layer index metadata
 	if map.is_group_entity(entity, "_tb_layer"):
