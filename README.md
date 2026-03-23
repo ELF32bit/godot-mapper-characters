@@ -20,6 +20,7 @@ The build system will then construct the animation table that switches visibilit
 * **`autoplay`** animation name will be used as the default animation.
 * **`fade_visibility_end`** distance after which after-images will be hidden.
 * **`visibility_end`** distance in units. 0 is default, meaning disabled.
+* **`cast_shadow`** can be 0 (disabled), **1 (on)**, 2 (double sided).
 
 > Groups from the **Default Layer** with animation names will also be parsed as frames.
 

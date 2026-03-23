@@ -33,6 +33,7 @@ static func build(map: MapperMap) -> void:
 	info["autoplay"] = animation_info.get_string_property("autoplay", "").to_lower()
 	info["fade_visibility_end"] = animation_info.get_unit_property("fade_visibility_end", 0.0)
 	info["visibility_end"] = animation_info.get_unit_property("visibility_end", 0.0)
+	info["cast_shadow"] = animation_info.get_int_property("cast_shadow", 1)
 
 	# parsing unsorted animations from map layers
 	var animations: Dictionary = {}
@@ -109,7 +110,7 @@ static func build(map: MapperMap) -> void:
 		var occluder_instance := _merge_occluder_instances(occluder_instances, transform)
 
 		# setting default properties for the RESET animation
-		mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		mesh_instance.cast_shadow = info["cast_shadow"]
 		mesh_instance.visibility_range_end = info["visibility_end"]
 		collision_shape.disabled = true
 		for other_node in layer_node.find_children("*", "CollisionShape3D", true, false):
