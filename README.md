@@ -1,5 +1,5 @@
 # Animation system for [godot-mapper](https://github.com/ELF32bit/godot-mapper) plugin
-![Demonstration](screenshots/demonstration.png)<br>
+![Demonstration](screenshots/demonstration.webp)<br>
 This frame-by-frame animation system aims to improve map prefab creation.<br>
 While more powerful animation tools exist, often a simpler solution can be more handy.<br>
 The ability to work with the single and flexible asset format is great for prototyping ideas.<br>
