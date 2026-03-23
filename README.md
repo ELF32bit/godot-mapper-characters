@@ -11,6 +11,7 @@ The build system will then construct the animation table that switches visibilit
 * **`loop_mode`** can be 0 (none), 1 (loop), 2 (ping pong). 1 is default.
 * **`frame_duration`** multiplies layer number (frame number) by the duration.
 * **`fade`** is an array of fade percentages like [0.5, 0.75, 0.9] for previous frames.
+* **`fade_loop`** set to True will enable a smoother transition for looping animations.
 * **`fade_before`** set to False will disable after-images of previous frames.
 * **`fade_after`** set to True will enable after-images for future frames.
 * **`fade_mode`** interpolation can be 0 (none), **1 (linear)**, 2 (cubic).

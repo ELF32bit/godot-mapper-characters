@@ -56,6 +56,7 @@ static func build(map: MapperMap) -> void:
 		animations[name]["frame_duration"] = parameters.get("frame_duration", 0.2)
 		animations[name]["loop_mode"] = parameters.get("loop_mode", 1)
 		animations[name]["fade"] = parameters.get("fade", [])
+		animations[name]["fade_loop"] = parameters.get("fade_loop", false)
 		animations[name]["fade_before"] = parameters.get("fade_before", true)
 		animations[name]["fade_after"] = parameters.get("fade_after", false)
 		animations[name]["fade_mode"] = parameters.get("fade_mode", 1)
@@ -490,7 +491,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 								if i == 0 or data["fade_after"]:
 									is_visible = true
 					Animation.LOOP_LINEAR:
-						for i in range(fade_frames_min):
+						for i in range(fade_frames if data["fade_loop"] else fade_frames_min):
 							if index2 == posmod(index1 + i, frames):
 								if i == 0 or data["fade_before"]:
 									is_visible = true
@@ -561,7 +562,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 										if i != 0 and data["fade_after"]:
 											fade_index = float(i)
 							Animation.LOOP_LINEAR:
-								for i in range(fade_frames_min):
+								for i in range(fade_frames if data["fade_loop"] else fade_frames_min):
 									if index2 == posmod(index1 + i, frames):
 										if i == 0 or data["fade_before"]:
 											priority = default_priority - i
