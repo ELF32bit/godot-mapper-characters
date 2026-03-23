@@ -24,6 +24,7 @@ static func build(map: MapperMap) -> void:
 
 	# finding info_animation entity
 	var animation_info := MapperEntity.new()
+	animation_info.factory = map.factory
 	if map.classnames.has("info_animation"):
 		animation_info = map.classnames.get("info_animation", [null])[0]
 
