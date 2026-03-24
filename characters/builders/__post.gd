@@ -270,8 +270,7 @@ static func _merge_collision_shapes(collision_shapes: Array, inverse_transform: 
 		if not collision_shape.shape: continue
 		var debug_mesh: ArrayMesh = collision_shape.shape.get_debug_mesh()
 		var transform := inverse_transform * get_global_transform(collision_shape)
-		var faces := transform * debug_mesh.generate_triangle_mesh().get_faces()
-		merged_faces.append_array(faces)
+		if debug_mesh: merged_faces.append_array(transform * debug_mesh.get_faces())
 
 	var collision_shape := CollisionShape3D.new()
 	collision_shape.shape = ConcavePolygonShape3D.new()

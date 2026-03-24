@@ -11,8 +11,8 @@ config_version=5
 [application]
 
 config/name="Mapper Plugin Characters"
-run/main_scene="uid://c20777ho4ge14"
-config/features=PackedStringArray("4.6", "Mobile")
+run/main_scene="res://characters/maps/example.map"
+config/features=PackedStringArray("4.3", "Mobile")
 
 [editor_plugins]
 
