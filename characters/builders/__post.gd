@@ -3,6 +3,12 @@ extends MapperUtilities
 const SHADER_FADE_PROPERTY: String = "fade"
 const SHADER_FADE_INDEX_PROPERTY: String = "fade_index"
 const FADE_MATERIAL_METADATA: String = "fade_material"
+const NODE_NAMES: Array = ["ANIMATIONS", "STORAGE",
+	"MeshInstance3D",
+	"FadeInstance3D",
+	"CollisionShape3D",
+	"OccluderInstance3D",
+]
 
 @warning_ignore("unused_parameter")
 static func build(map: MapperMap) -> void:
@@ -10,7 +16,7 @@ static func build(map: MapperMap) -> void:
 	var storage_node := Node3D.new()
 	map.node.add_child(storage_node)
 	map.node.move_child(storage_node, 0)
-	storage_node.name = "STORAGE"
+	storage_node.name = NODE_NAMES[1]
 
 	# finding map layers and deleting empty nodes
 	var layers := map.node.find_child("func_group", false, false)
@@ -136,10 +142,10 @@ static func build(map: MapperMap) -> void:
 			else: old_node.free()
 
 		# manually naming merged nodes to ignore project naming settings
-		mesh_instance.name = "MeshInstance3D"
-		fade_instance.name = "FadeInstance3D"
-		collision_shape.name = "CollisionShape3D"
-		occluder_instance.name = "OccluderInstance3D"
+		mesh_instance.name = NODE_NAMES[2]
+		fade_instance.name = NODE_NAMES[3]
+		collision_shape.name = NODE_NAMES[4]
+		occluder_instance.name = NODE_NAMES[5]
 
 		# adding merged nodes to the layer node
 		var has_collision := true
@@ -166,8 +172,8 @@ static func build(map: MapperMap) -> void:
 		if is_instance_valid(mesh_instance):
 			for other_node in layer_node.get_children():
 				if not other_node is Node3D: continue
-				if other_node.name in ["MeshInstance3D", "FadeInstance3D",
-					"CollisionShape3D", "OccluderInstance3D"]: continue
+				if other_node.name in [NODE_NAMES[2], NODE_NAMES[3],
+					NODE_NAMES[4], NODE_NAMES[5]]: continue
 				other_node.visibility_parent = other_node.get_path_to(mesh_instance)
 
 		# changing layer node type if collision shape is missing
@@ -200,7 +206,7 @@ static func build(map: MapperMap) -> void:
 	var animation_player := AnimationPlayer.new()
 	map.node.add_child(animation_player, true)
 	map.node.move_child(animation_player, 0)
-	animation_player.name = "ANIMATIONS"
+	animation_player.name = NODE_NAMES[0]
 
 	# moving animation player to the physics process if collision shapes are present
 	for index in range(animation_nodes.size()):
@@ -320,10 +326,10 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 			var node_path := str(map.node.get_path_to(node))
 			var track_index := animation.get_track_count()
 
-			var mesh_instance := node.find_child("MeshInstance3D", false, false)
-			var fade_instance := node.find_child("FadeInstance3D", false, false)
-			var collision_shape := node.find_child("CollisionShape3D", false, false)
-			var occluder_instance := node.find_child("OccluderInstance3D", false, false)
+			var mesh_instance := node.find_child(NODE_NAMES[2], false, false)
+			var fade_instance := node.find_child(NODE_NAMES[3], false, false)
+			var collision_shape := node.find_child(NODE_NAMES[4], false, false)
+			var occluder_instance := node.find_child(NODE_NAMES[5], false, false)
 
 			animation.add_track(Animation.TYPE_VALUE)
 			animation.track_set_path(track_index, node_path + ":visible")
@@ -337,7 +343,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 			animation.add_track(Animation.TYPE_VALUE)
 			if not mesh_instance is MeshInstance3D:
 				animation.track_set_enabled(track_index, false)
-			animation.track_set_path(track_index, node_path + "/MeshInstance3D:visible")
+			animation.track_set_path(track_index, node_path + "/%s:visible" % NODE_NAMES[2])
 			animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
 			animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
 			animation.track_set_interpolation_loop_wrap(track_index, false)
@@ -347,8 +353,8 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 
 			for child in node.get_children():
 				if not child is Node3D: continue
-				if child.name in ["MeshInstance3D", "FadeInstance3D",
-					"CollisionShape3D", "OccluderInstance3D"]: continue
+				if child.name in [NODE_NAMES[2], NODE_NAMES[3],
+					NODE_NAMES[4], NODE_NAMES[5]]: continue
 				if not child.visible: continue
 				animation.add_track(Animation.TYPE_VALUE)
 				animation.track_set_path(track_index, node_path + "/%s:visible" % [child.name])
@@ -362,7 +368,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 			animation.add_track(Animation.TYPE_VALUE)
 			if not fade_instance is MeshInstance3D:
 				animation.track_set_enabled(track_index, false)
-			animation.track_set_path(track_index, node_path + "/FadeInstance3D:visible")
+			animation.track_set_path(track_index, node_path + "/%s:visible" % NODE_NAMES[3])
 			animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
 			animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
 			animation.track_set_interpolation_loop_wrap(track_index, false)
@@ -386,8 +392,8 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 					# duplicating fade material for each animation
 					fade_material = fade_material.duplicate()
 					fade_instance.set_surface_override_material(surface_index, fade_material)
-					var material_path := "/FadeInstance3D:surface_material_override/%s"
-					material_path = material_path % [surface_index]
+					var material_path := "/%s:surface_material_override/%s"
+					material_path = material_path % [NODE_NAMES[3], surface_index]
 
 					var default_priority: int = fade_material.render_priority
 					var priority_path := "%s:render_priority" % [material_path]
@@ -431,7 +437,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 					track_index += 1
 
 			animation.add_track(Animation.TYPE_VALUE)
-			animation.track_set_path(track_index, node_path + "/FadeInstance3D:top_level")
+			animation.track_set_path(track_index, node_path + "/%s:top_level" % NODE_NAMES[3])
 			animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
 			animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
 			animation.track_set_interpolation_loop_wrap(track_index, false)
@@ -442,7 +448,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 			animation.add_track(Animation.TYPE_VALUE)
 			if not collision_shape is CollisionShape3D:
 				animation.track_set_enabled(track_index, false)
-			animation.track_set_path(track_index, node_path + "/CollisionShape3D:disabled")
+			animation.track_set_path(track_index, node_path + "/%s:disabled" % NODE_NAMES[4])
 			animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
 			animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
 			animation.track_set_interpolation_loop_wrap(track_index, false)
@@ -463,7 +469,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 				track_index += 1
 
 			animation.add_track(Animation.TYPE_VALUE)
-			animation.track_set_path(track_index, node_path + "/CollisionShape3D:top_level")
+			animation.track_set_path(track_index, node_path + "/%s:top_level" % NODE_NAMES[4])
 			animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
 			animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
 			animation.track_set_interpolation_loop_wrap(track_index, false)
@@ -474,7 +480,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 
 			if occluder_instance is OccluderInstance3D:
 				animation.add_track(Animation.TYPE_VALUE)
-				animation.track_set_path(track_index, node_path + "/OccluderInstance3D:visible")
+				animation.track_set_path(track_index, node_path + "/%s:visible" % NODE_NAMES[5])
 				animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
 				animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
 				animation.track_set_interpolation_loop_wrap(track_index, false)
@@ -517,7 +523,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 				animation.track_insert_key(main_track_index, frame_time, is_visible)
 
 			# inserting mesh instance track keys
-			var mesh_track_path := str(map.node.get_path_to(node)) + "/MeshInstance3D:visible"
+			var mesh_track_path := str(map.node.get_path_to(node)) + "/%s:visible" % NODE_NAMES[2]
 			var mesh_track_index := animation.find_track(mesh_track_path, Animation.TYPE_VALUE)
 			if not mesh_track_index < 0:
 				for index2 in range(frames):
@@ -525,7 +531,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 					animation.track_insert_key(mesh_track_index, frame_time, bool(index2 == index1))
 
 			# inserting fade instance track keys
-			var fade_track_path := str(map.node.get_path_to(node)) + "/FadeInstance3D:visible"
+			var fade_track_path := str(map.node.get_path_to(node)) + "/%s:visible" % NODE_NAMES[3]
 			var fade_track_index := animation.find_track(fade_track_path, Animation.TYPE_VALUE)
 			if not fade_track_index < 0:
 				for index2 in range(frames):
@@ -542,7 +548,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 			# inserting fade instance shader material tracks keys
 			if not mesh_track_index < 0 and not fade_track_index < 0:
 				var default_priority: int = 0
-				var empty_track_path := str(map.node.get_path_to(node)) + "/FadeInstance3D:top_level"
+				var empty_track_path := str(map.node.get_path_to(node)) + "/%s:top_level" % NODE_NAMES[3]
 				var empty_track_index := animation.find_track(empty_track_path, Animation.TYPE_VALUE)
 				for track_index in range(fade_track_index + 1, empty_track_index):
 					var c: int = track_index - (fade_track_index + 1)
@@ -600,7 +606,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 						elif c % 3 == 2: animation.track_insert_key(track_index, frame_time, fade_index)
 
 			# inserting collision shape track keys
-			var collision_track_path := str(map.node.get_path_to(node)) + "/CollisionShape3D:disabled"
+			var collision_track_path := str(map.node.get_path_to(node)) + "/%s:disabled" % NODE_NAMES[4]
 			var collision_track_index := animation.find_track(collision_track_path, Animation.TYPE_VALUE)
 			if not collision_track_index < 0:
 				for index2 in range(frames):
@@ -608,7 +614,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 					animation.track_insert_key(collision_track_index, frame_time, not bool(index2 == index1))
 
 			# inserting collision shape tracks keys for other nodes
-			var empty_track_path2 := str(map.node.get_path_to(node)) + "/CollisionShape3D:top_level"
+			var empty_track_path2 := str(map.node.get_path_to(node)) + "/%s:top_level" % NODE_NAMES[4]
 			var empty_track_index2 := animation.find_track(empty_track_path2, Animation.TYPE_VALUE)
 			if not collision_track_index < 0 and not empty_track_index2 < 0:
 				for track_index in range(collision_track_index + 1, empty_track_index2):
@@ -617,7 +623,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 						animation.track_insert_key(track_index, frame_time, bool(index2 != index1))
 
 			# inserting occluder instance track keys
-			var occluder_track_path := str(map.node.get_path_to(node)) + "/OccluderInstance3D:visible"
+			var occluder_track_path := str(map.node.get_path_to(node)) + "/%s:visible" % NODE_NAMES[5]
 			var occluder_track_index := animation.find_track(occluder_track_path, Animation.TYPE_VALUE)
 			if not occluder_track_index < 0:
 				for index2 in range(frames):
@@ -626,7 +632,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 
 			# enabling autoplay nodes
 			if (index1 == 0 and is_autoplay):
-				var collision_shape := node.find_child("CollisionShape3D", false, false)
+				var collision_shape := node.find_child(NODE_NAMES[4], false, false)
 				if collision_shape is CollisionShape3D: collision_shape.disabled = false
 				for child in node.find_children("*", "CollisionShape3D", true, false):
 					if child == collision_shape: continue
