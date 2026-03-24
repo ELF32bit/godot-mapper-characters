@@ -189,7 +189,9 @@ static func build(map: MapperMap) -> void:
 	for group_node in map.node.find_children("*", "", true, false):
 		if not is_instance_valid(group_node): continue
 		if not group_node.get_meta("_MAPPER_GROUP", false): continue
-		if group_node.get_children().size():
+		if group_node.get_parent() == map.node:
+			group_node.remove_meta("_MAPPER_GROUP")
+		elif group_node.get_children().size():
 			group_node.remove_meta("_MAPPER_GROUP")
 		else: group_node.free()
 
