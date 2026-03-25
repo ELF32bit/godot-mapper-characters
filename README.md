@@ -4,6 +4,8 @@ This frame-by-frame animation system aims to improve map prefab creation.<br>
 While more powerful animation tools exist, often a simpler solution can be more handy.<br>
 The ability to work with the single and flexible asset format is great for prototyping ideas.<br>
 
+#### [obj2map.py script to help writing animated maps](https://github.com/ELF32bit/quake-mapping-tools)
+
 ## Explanation (for TrenchBroom maps)
 Maps inside `characters` directory are scanned for layer names like **RUN->3.5**, **IDLE->0**.<br>
 The build system will then construct the animation table that switches visibility of the layers.<br>
