@@ -54,6 +54,11 @@ static func build(map: MapperMap, entity: MapperEntity) -> Node:
 		node = Node3D.new()
 		node.set_meta("_MAPPER_GROUP", true)
 
+	# setting additional group node properties from map options
+	node.set("physics_material_override", map.settings.options.get("physics_material", null))
+	node.set("collision_layer", map.settings.options.get("collision_layer", 1))
+	node.set("collision_mask", map.settings.options.get("collision_mask", 1))
+
 	# returning group node with TB layer index metadata
 	if map.is_group_entity(entity, "_tb_layer"):
 		node.set_meta("_MAPPER_INDEX", entity.get_int_property(

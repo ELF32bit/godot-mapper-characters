@@ -393,8 +393,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 					# duplicating fade material for each animation
 					fade_material = fade_material.duplicate()
 					fade_instance.set_surface_override_material(surface_index, fade_material)
-					var material_path := "/%s:surface_material_override/%s"
-					material_path = material_path % [NODE_NAMES[3], surface_index]
+					var material_path := "/%s:surface_material_override/%s" % [NODE_NAMES[3], surface_index]
 
 					var default_priority: int = fade_material.render_priority
 					var priority_path := "%s:render_priority" % [material_path]
