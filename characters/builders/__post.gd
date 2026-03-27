@@ -118,10 +118,10 @@ static func build(map: MapperMap) -> void:
 		# setting default properties for the RESET animation
 		mesh_instance.cast_shadow = info["cast_shadow"]
 		mesh_instance.visibility_range_end = info["visibility_end"]
-		collision_shape.disabled = true
 		for other_node in layer_node.find_children("*", "CollisionShape3D", true, false):
 			if other_node.disabled: other_node.set_meta("_MAPPER_DISABLED", true)
 			other_node.disabled = true
+		collision_shape.disabled = true
 
 		# duplicating mesh instance as fade instance
 		var fade_instance := mesh_instance.duplicate()
@@ -225,6 +225,12 @@ static func build(map: MapperMap) -> void:
 
 	# creating reset animation for the animation player
 	MapperUtilities.create_reset_animation(animation_player, animation_library)
+
+	# clearing some leftover metadata
+	for index in range(animation_nodes.size()):
+		var layer_node: Node3D = animation_nodes[index][0]
+		for child in layer_node.find_children("*", "CollisionShape3D", true, false):
+			if child.has_meta("_MAPPER_DISABLED"): child.remove_meta("_MAPPER_DISABLED")
 
 
 static func _merge_mesh_instances(mesh_instances: Array, inverse_transform: Transform3D) -> MeshInstance3D:
@@ -457,8 +463,8 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 			track_index += 1
 
 			for child in node.find_children("*", "CollisionShape3D", true, false):
-				if child == collision_shape: continue
 				if child.get_meta("_MAPPER_DISABLED", false): continue
+				if child == collision_shape: continue
 				animation.add_track(Animation.TYPE_VALUE)
 				animation.track_set_path(track_index, str(map.node.get_path_to(child)) + ":disabled")
 				animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
@@ -603,7 +609,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 										if i != 0: fade_index = float(-i)
 						if c % 3 == 0: animation.track_insert_key(track_index, frame_time, priority)
 						elif c % 3 == 1: animation.track_insert_key(track_index, frame_time, fade)
-						elif c % 3 == 2: animation.track_insert_key(track_index, frame_time, fade_index)
+						else: animation.track_insert_key(track_index, frame_time, fade_index)
 
 			# inserting collision shape track keys
 			var collision_track_path := str(map.node.get_path_to(node)) + "/%s:disabled" % NODE_NAMES[4]
@@ -635,14 +641,10 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 				var collision_shape := node.find_child(NODE_NAMES[4], false, false)
 				if collision_shape is CollisionShape3D: collision_shape.disabled = false
 				for child in node.find_children("*", "CollisionShape3D", true, false):
-					if child == collision_shape: continue
 					if child.get_meta("_MAPPER_DISABLED", false): continue
+					if child == collision_shape: continue
 					child.disabled = false
 				node.visible = true
-
-			# clearing some leftover metadata
-			for child in node.find_children("*", "CollisionShape3D", true, false):
-				if child.has_meta("_MAPPER_DISABLED"): child.remove_meta("_MAPPER_DISABLED")
 
 		# removing empty tracks
 		var removed_tracks: int = 0
