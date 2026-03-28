@@ -386,15 +386,14 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 			if fade_instance is MeshInstance3D:
 				for surface_index in range(fade_instance.get_surface_override_material_count()):
 					var material: Material = fade_instance.get_active_material(surface_index)
+					if not material: continue
 
 					# trying to load fade material from material metadata
 					var fade_material = material
 					if material.has_meta(FADE_MATERIAL_METADATA):
 						fade_material = material.get_meta(FADE_MATERIAL_METADATA, null)
-						if fade_material != null:
-							if not fade_material is ShaderMaterial: continue
-							if fade_material.get_shader_parameter(SHADER_FADE_PROPERTY) == null:
-								continue
+					if not (fade_material != null and fade_material is ShaderMaterial): continue
+					if fade_material.get_shader_parameter(SHADER_FADE_PROPERTY) == null: continue
 
 					# duplicating fade material for each animation
 					fade_material = fade_material.duplicate()
