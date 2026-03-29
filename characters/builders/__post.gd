@@ -3,10 +3,9 @@ extends MapperUtilities
 const SHADER_FADE_PROPERTY: String = "fade"
 const SHADER_FADE_INDEX_PROPERTY: String = "fade_index"
 const FADE_MATERIAL_METADATA: String = "fade_material"
-const TOP_NODE_NAMES: Array = ["ANIMATIONS", "STORAGE"]
 const NODE_NAMES: Array = [
 	"MeshInstance3D",
-	"FadeInstance3D",
+	"MeshInstance3D+",
 	"CollisionShape3D",
 	"OccluderInstance3D",
 ]
@@ -17,7 +16,7 @@ static func build(map: MapperMap) -> void:
 	var storage_node := Node3D.new()
 	map.node.add_child(storage_node)
 	map.node.move_child(storage_node, 0)
-	storage_node.name = TOP_NODE_NAMES[1]
+	storage_node.name = "STORAGE"
 
 	# finding map layers and deleting empty nodes
 	var layers := map.node.find_child("func_group", false, false)
@@ -73,24 +72,24 @@ static func build(map: MapperMap) -> void:
 			var name := split[0].to_lower()
 			var frame := float(split[1])
 
-			animations.get_or_add(name, {})
-			animations[name].get_or_add("nodes", []).append(child)
-			animations[name].get_or_add("frames", []).append(frame)
-			var max_frame: float = animations[name].get_or_add("max_frame", 0.0)
-			animations[name]["max_frame"] = maxf(frame, max_frame)
+			var data: Dictionary = animations.get_or_add(name, {})
+			var max_frame: float = data.get_or_add("max_frame", 0.0)
+			data.get_or_add("nodes", []).append(child)
+			data.get_or_add("frames", []).append(frame)
+			data["max_frame"] = maxf(frame, max_frame)
 
 			# reading animation parameters from info_animation entity
 			var parameters: Dictionary = animation_info.get_variant_property(split[0], {})
-			animations[name]["frame_duration"] = parameters.get("frame_duration", 0.2)
-			animations[name]["loop_mode"] = parameters.get("loop_mode", 1)
-			animations[name]["fade"] = parameters.get("fade", [])
-			animations[name]["fade_loop"] = parameters.get("fade_loop", false)
-			animations[name]["fade_before"] = parameters.get("fade_before", true)
-			animations[name]["fade_after"] = parameters.get("fade_after", false)
-			animations[name]["fade_mode"] = parameters.get("fade_mode", 1)
+			data["frame_duration"] = parameters.get("frame_duration", 0.2)
+			data["loop_mode"] = parameters.get("loop_mode", 1)
+			data["fade"] = parameters.get("fade", [])
+			data["fade_loop"] = parameters.get("fade_loop", false)
+			data["fade_before"] = parameters.get("fade_before", true)
+			data["fade_after"] = parameters.get("fade_after", false)
+			data["fade_mode"] = parameters.get("fade_mode", 1)
 
 			# remembering layers that have fade frames from any animation
-			if animations[name]["fade"].size():
+			if data["fade"].size():
 				info.get_or_add("_has_fade", {})[child] = true
 
 		# preparing to move animation layer nodes
@@ -233,7 +232,7 @@ static func build(map: MapperMap) -> void:
 	var animation_player := AnimationPlayer.new()
 	map.node.add_child(animation_player, true)
 	map.node.move_child(animation_player, 0)
-	animation_player.name = TOP_NODE_NAMES[0]
+	animation_player.name = "ANIMATIONS"
 
 	# moving animation player to the physics process if collision shapes are present
 	for index in range(animation_nodes.size()):
