@@ -45,32 +45,49 @@ static func build(map: MapperMap) -> void:
 	var animations: Dictionary = {}
 	var animation_nodes: Array = []
 	for child in layers.get_children():
-		var split: PackedStringArray = child.name.split("->", false, 1)
-		if split.size() != 2: continue
-		split[1] = split[1].replace("_", ".")
-		if not split[1].is_valid_float(): continue
-		var name := split[0].to_lower()
-		var frame := float(split[1])
+		var names := child.name.split("|", false)
+		if not names.size(): continue
 
-		animations.get_or_add(name, {})
-		animations[name].get_or_add("nodes", []).append(child)
-		animations[name].get_or_add("frames", []).append(frame)
-		var max_frame: float = animations[name].get_or_add("max_frame", 0.0)
-		animations[name]["max_frame"] = maxf(frame, max_frame)
+		# validating animation layer name
+		var is_animation_layer := true
+		for index in range(names.size()):
+			names[index] = names[index].strip_edges()
+			var split := names[index].split("->", false, 1)
+			if split.size() != 2:
+				is_animation_layer = false
+				break
+			split[1] = split[1].replace("_", ".")
+			if not split[1].is_valid_float():
+				is_animation_layer = false
+				break
+		if not is_animation_layer: continue
 
-		# reading animation parameters from info_animation entity
-		var parameters: Dictionary = animation_info.get_variant_property(split[0], {})
-		animations[name]["frame_duration"] = parameters.get("frame_duration", 0.2)
-		animations[name]["loop_mode"] = parameters.get("loop_mode", 1)
-		animations[name]["fade"] = parameters.get("fade", [])
-		animations[name]["fade_loop"] = parameters.get("fade_loop", false)
-		animations[name]["fade_before"] = parameters.get("fade_before", true)
-		animations[name]["fade_after"] = parameters.get("fade_after", false)
-		animations[name]["fade_mode"] = parameters.get("fade_mode", 1)
+		for index in range(names.size()):
+			var split := names[index].split("->", false, 1)
+			split[1] = split[1].replace("_", ".")
+			var name := split[0].to_lower()
+			var frame := float(split[1])
+
+			animations.get_or_add(name, {})
+			animations[name].get_or_add("nodes", []).append(child)
+			animations[name].get_or_add("frames", []).append(frame)
+			var max_frame: float = animations[name].get_or_add("max_frame", 0.0)
+			animations[name]["max_frame"] = maxf(frame, max_frame)
+
+			# reading animation parameters from info_animation entity
+			var parameters: Dictionary = animation_info.get_variant_property(split[0], {})
+			animations[name]["frame_duration"] = parameters.get("frame_duration", 0.2)
+			animations[name]["loop_mode"] = parameters.get("loop_mode", 1)
+			animations[name]["fade"] = parameters.get("fade", [])
+			animations[name]["fade_loop"] = parameters.get("fade_loop", false)
+			animations[name]["fade_before"] = parameters.get("fade_before", true)
+			animations[name]["fade_after"] = parameters.get("fade_after", false)
+			animations[name]["fade_mode"] = parameters.get("fade_mode", 1)
 
 		animation_nodes.append([child, child.get_meta("_MAPPER_INDEX", 0)])
 		child.remove_meta("_MAPPER_INDEX")
 		layers.remove_child(child)
+		child.name = names[0]
 
 	# sorting animations
 	for name in animations:
