@@ -89,6 +89,10 @@ static func build(map: MapperMap) -> void:
 			animations[name]["fade_after"] = parameters.get("fade_after", false)
 			animations[name]["fade_mode"] = parameters.get("fade_mode", 1)
 
+			# remembering layers that have fade frames from any animation
+			if animations[name]["fade"].size():
+				info.get_or_add("_has_fade", {})[child] = true
+
 		# preparing to move animation layer nodes
 		animation_nodes.append([child, child.get_meta("_MAPPER_LAYER_INDEX")])
 		layers.remove_child(child)
@@ -188,6 +192,11 @@ static func build(map: MapperMap) -> void:
 		else:
 			mesh_instance.free()
 			fade_instance.free()
+
+		# removing fade instance if there are no fade frames
+		if is_instance_valid(fade_instance):
+			if not info.get("_has_fade", {}).get(layer_node, false):
+				fade_instance.free()
 
 		# setting visibility parent for all other nodes in the layer
 		if is_instance_valid(mesh_instance):
