@@ -49,7 +49,7 @@ static func build(map: MapperMap, entity: MapperEntity) -> Node:
 		node.remove_meta("_MAPPER_MERGE")
 	elif not node and map.is_group_entity(entity, "_tb_layer"):
 		node = AnimatableBody3D.new()
-		node.set_meta("_MAPPER_EMPTY", true)
+		node.set_meta("_MAPPER_LAYER_REPLACE", true)
 	elif not node:
 		node = Node3D.new()
 		node.set_meta("_MAPPER_GROUP", true)
@@ -61,7 +61,7 @@ static func build(map: MapperMap, entity: MapperEntity) -> Node:
 
 	# returning group node with TB layer index metadata
 	if map.is_group_entity(entity, "_tb_layer"):
-		node.set_meta("_MAPPER_INDEX", entity.get_int_property(
+		node.set_meta("_MAPPER_LAYER_INDEX", entity.get_int_property(
 			map.settings.tb_layer_index_property, 0))
 	return node
 

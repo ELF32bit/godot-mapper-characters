@@ -24,8 +24,7 @@ The build system will then construct the animation table that switches visibilit
 * **`visibility_end`** distance in units. 0 is default, meaning disabled.
 * **`cast_shadow`** can be 0 (disabled), **1 (on)**, 2 (double sided).
 
-> Layers named like **OPEN->0 | CLOSE->9 | ...** will be reused in multiple animations.<br>
-Groups from the **Default Layer** with animation names will also be parsed as frames.
+> Layers named like **OPEN->0 | CLOSE->9 | ...** will be reused in multiple animations.
 
 Animation layers can contain specially constructed point and brush entities.<br>
 For example, certain frames might need hit boxes or moving lights.<br>
