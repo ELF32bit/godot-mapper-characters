@@ -197,13 +197,6 @@ static func build(map: MapperMap) -> void:
 			if not info.get("_has_fade", {}).get(layer_node, false):
 				fade_instance.free()
 
-		# setting visibility parent for all other nodes in the layer
-		if is_instance_valid(mesh_instance):
-			for other_node in layer_node.get_children():
-				if not other_node is Node3D: continue
-				if other_node.name in NODE_NAMES: continue
-				other_node.visibility_parent = other_node.get_path_to(mesh_instance)
-
 		# changing layer node type if collision shape is missing
 		if not has_collision:
 			var new_layer_node := change_node_type(layer_node, "Node3D")
