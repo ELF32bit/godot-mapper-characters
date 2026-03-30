@@ -15,7 +15,10 @@ dest_files=["res://.godot/imported/example.map-3dbaca559977e775c86d7d4718af9a10.
 game=2
 wads=[]
 options={
+"collision_layer": 1,
+"collision_mask": 1,
 "occlusion_culling": true,
+"physics_material": null,
 "print_progress": false,
 "store_base_materials": false
 }
