@@ -28,6 +28,7 @@ The build system will then construct the animation table that switches visibilit
 
 Animation layers can contain specially constructed point and brush entities.<br>
 For example, certain frames might need hit boxes or moving lights.<br>
+One-shot audio, particles and activatable scripts are supported.<br>
 All other layers will be parsed as the global **`STORAGE`** node.<br>
 
 ## Transparent after-images

@@ -3,6 +3,7 @@ extends MapperUtilities
 const SHADER_FADE_PROPERTY: String = "fade"
 const SHADER_FADE_INDEX_PROPERTY: String = "fade_index"
 const FADE_MATERIAL_METADATA: String = "fade_material"
+const SCRIPT_ACTIVATE_PROPERTY: String = "activated"
 const NODE_NAMES: Array = [
 	"MeshInstance3D",
 	"MeshInstance3D+",
@@ -381,18 +382,50 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 			animation.track_set_imported(track_index, true)
 			track_index += 1
 
+			# inserting tracks for other nodes
 			for child in node.get_children():
-				if not child is Node3D: continue
 				if child.name in NODE_NAMES: continue
-				if not child.visible: continue
-				animation.add_track(Animation.TYPE_VALUE)
-				animation.track_set_path(track_index, node_path + "/%s:visible" % [child.name])
-				animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
-				animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
-				animation.track_set_interpolation_loop_wrap(track_index, false)
-				animation.track_insert_key(track_index, 0.0, false)
-				animation.track_set_imported(track_index, true)
-				track_index += 1
+				if child is Node3D and child.visible:
+					animation.add_track(Animation.TYPE_VALUE)
+					animation.track_set_path(track_index, node_path + "/%s:visible" % [child.name])
+					animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
+					animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
+					animation.track_set_interpolation_loop_wrap(track_index, false)
+					animation.track_insert_key(track_index, 0.0, false)
+					animation.track_set_imported(track_index, true)
+					track_index += 1
+
+				if child is AudioStreamPlayer or child is AudioStreamPlayer3D:
+					if _check_audio_stream(child.stream):
+						animation.add_track(Animation.TYPE_VALUE)
+						animation.track_set_path(track_index, node_path + "/%s:playing" % [child.name])
+						animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
+						animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
+						animation.track_set_interpolation_loop_wrap(track_index, false)
+						animation.track_set_imported(track_index, true)
+						track_index += 1
+					else: push_warning("Animation system supports only one-shot audio streams.")
+
+				if child is CPUParticles3D or child is GPUParticles3D:
+					if child.one_shot:
+						animation.add_track(Animation.TYPE_VALUE)
+						animation.track_set_path(track_index, node_path + "/%s:emitting" % [child.name])
+						animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
+						animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
+						animation.track_set_interpolation_loop_wrap(track_index, false)
+						animation.track_set_imported(track_index, true)
+						track_index += 1
+					else: push_warning("Animation system supports only one-shot particle systems.")
+
+				if SCRIPT_ACTIVATE_PROPERTY in child: # for special scripted nodes
+					animation.add_track(Animation.TYPE_VALUE)
+					animation.track_set_path(track_index, node_path + "/%s:%s" % [child.name, SCRIPT_ACTIVATE_PROPERTY])
+					animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
+					animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
+					animation.track_set_interpolation_loop_wrap(track_index, false)
+					animation.track_insert_key(track_index, 0.0, false)
+					animation.track_set_imported(track_index, true)
+					track_index += 1
 
 			animation.add_track(Animation.TYPE_VALUE)
 			if not fade_instance is MeshInstance3D:
@@ -568,9 +601,13 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 			# inserting visibility tracks keys for other nodes
 			if not mesh_track_index < 0 and not fade_track_index < 0:
 				for track_index in range(mesh_track_index + 1, fade_track_index):
+					var is_one_shot_track = bool(animation.track_get_key_count(track_index) == 0)
 					for index2 in range(frames):
 						var frame_time: float = data["frames"][index2] * data["frame_duration"]
-						animation.track_insert_key(track_index, frame_time, bool(index2 == index1))
+						if not is_one_shot_track:
+							animation.track_insert_key(track_index, frame_time, bool(index2 == index1))
+						elif index2 == index1:
+							animation.track_insert_key(track_index, frame_time, true)
 
 			# inserting fade instance shader material tracks keys
 			if not mesh_track_index < 0 and not fade_track_index < 0:
@@ -680,3 +717,10 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 		# finishing animation and adding it to the library
 		MapperUtilities.remove_repeating_animation_keys(animation)
 		animation_library.add_animation(name, animation)
+
+
+static func _check_audio_stream(stream: AudioStream) -> bool:
+	if stream is AudioStreamWAV and stream.loop_mode != 0: return false
+	if stream is AudioStreamOggVorbis and stream.loop: return false
+	if stream is AudioStreamMP3 and stream.loop: return false
+	return true
