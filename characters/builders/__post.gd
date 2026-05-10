@@ -137,7 +137,7 @@ static func build(map: MapperMap) -> void:
 		occluder_instances = occluder_instances.filter(func(instance):
 			return instance.get_meta("_MAPPER_MERGE", false))
 
-		var mesh_instance := _merge_mesh_instances(mesh_instances, transform)
+		var mesh_instance := _merge_mesh_instances(mesh_instances, transform, map.settings)
 		var collision_shape := _merge_collision_shapes(collision_shapes, transform)
 		var occluder_instance := _merge_occluder_instances(occluder_instances, transform)
 
@@ -257,7 +257,7 @@ static func _clean_metadata(map: MapperMap) -> void:
 		if node.has_meta("_MAPPER_GROUP"): node.remove_meta("_MAPPER_GROUP")
 
 
-static func _merge_mesh_instances(mesh_instances: Array, inverse_transform: Transform3D) -> MeshInstance3D:
+static func _merge_mesh_instances(mesh_instances: Array, inverse_transform: Transform3D, settings: MapperSettings) -> MeshInstance3D:
 	var materials: Dictionary = {}
 	var surface_tools: Dictionary = {}
 	for mesh_instance in mesh_instances:
@@ -281,6 +281,9 @@ static func _merge_mesh_instances(mesh_instances: Array, inverse_transform: Tran
 		merged_mesh = surface_tools[surface_name].commit(merged_mesh)
 		var surface_index := merged_mesh.get_surface_count() - 1
 		merged_mesh.surface_set_name(surface_index, surface_name)
+	if settings.lightmap_unwrap:
+		MapperUtilities.lightmap_unwrap(merged_mesh,
+			Transform3D.IDENTITY, settings.lightmap_texel_size)
 
 	var merged_mesh_instance := MeshInstance3D.new()
 	merged_mesh_instance.mesh = merged_mesh
