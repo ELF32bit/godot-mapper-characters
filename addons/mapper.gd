@@ -13,5 +13,6 @@ const MAPPER_GAMES: Dictionary = {
 	"Characters": {
 		"game_directory": "res://characters",
 		"world_entity_extra_brush_entities_enabled": false,
+		"cast_shadow_meshes": false,
 	},
 }

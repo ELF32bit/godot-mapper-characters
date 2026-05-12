@@ -284,6 +284,8 @@ static func _merge_mesh_instances(mesh_instances: Array, inverse_transform: Tran
 	if settings.lightmap_unwrap:
 		MapperUtilities.lightmap_unwrap(merged_mesh,
 			Transform3D.IDENTITY, settings.lightmap_texel_size)
+	if settings.entity_shadow_meshes:
+		MapperUtilities.generate_shadow_mesh(merged_mesh)
 
 	var merged_mesh_instance := MeshInstance3D.new()
 	merged_mesh_instance.mesh = merged_mesh
