@@ -55,9 +55,10 @@ static func build(map: MapperMap, entity: MapperEntity) -> Node:
 		node.set_meta("_MAPPER_GROUP", true)
 
 	# setting additional group node properties from map options
-	node.set("physics_material_override", map.settings.options.get("physics_material", null))
-	node.set("collision_layer", map.settings.options.get("collision_layer", 1))
-	node.set("collision_mask", map.settings.options.get("collision_mask", 1))
+	var options := map.settings.options
+	node.set("physics_material_override", options.get("physics_material", null))
+	node.set("collision_layer", options.get("collision_layer", 1))
+	node.set("collision_mask", options.get("collision_mask", 1))
 
 	# returning group node with TB layer index metadata
 	if map.is_group_entity(entity, "_tb_layer"):
@@ -65,11 +66,35 @@ static func build(map: MapperMap, entity: MapperEntity) -> Node:
 			map.settings.tb_layer_index_property, 0))
 	return node
 
-@warning_ignore("unused_parameter")
+
 static func build_animated_geometry(map: MapperMap, entity: MapperEntity) -> Node:
-	var node := create_merged_brush_entity(entity, "AnimatableBody3D")
-	if not node: return null
-	for child in node.find_children("*", "", true, false):
-		child.set_meta("_MAPPER_MERGE", true)
-	node.set_meta("_MAPPER_MERGE", true)
+	var node: Node = null
+
+	# constructing brushes with additional map options
+	var options := map.settings.options
+	var has_mesh := not bool(options.get("mesh_disabled", false))
+	var has_occluder := not bool(options.get("occluder_disabled", false))
+	var has_collision := not bool(options.get("collision_disabled", false))
+	var use_convex_shapes := bool(options.get("collision_convex", true))
+	var convex_siblings := bool(options.get("collision_siblings", true))
+
+	if use_convex_shapes:
+		node = create_brush_entity(entity, "AnimatableBody3D", "",
+			has_mesh, has_collision, has_occluder)
+		if not node: return null
+		for child in node.find_children("*", "", true, false):
+			if child is CollisionShape3D:
+				if convex_siblings:
+					child.set_meta("_MAPPER_COLLISION_SIBLING", true)
+					child.set_meta("_MAPPER_MERGE", true)
+			else: child.set_meta("_MAPPER_MERGE", true)
+		if convex_siblings:
+			node.set_meta("_MAPPER_MERGE", true)
+	else:
+		node = create_merged_brush_entity(entity, "AnimatableBody3D",
+			has_mesh, has_collision, has_occluder)
+		if not node: return null
+		for child in node.find_children("*", "", true, false):
+			child.set_meta("_MAPPER_MERGE", true)
+		node.set_meta("_MAPPER_MERGE", true)
 	return node

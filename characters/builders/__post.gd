@@ -144,10 +144,12 @@ static func build(map: MapperMap) -> void:
 		# setting default properties for the RESET animation
 		mesh_instance.cast_shadow = info["cast_shadow"]
 		mesh_instance.visibility_range_end = info["visibility_end"]
+
+		collision_shape.disabled = true
+		for child in collision_shape.get_children(): child.disabled = true
 		for other_node in layer_node.find_children("*", "CollisionShape3D", true, false):
 			if other_node.disabled: other_node.set_meta("_MAPPER_DISABLED", true)
 			other_node.disabled = true
-		collision_shape.disabled = true
 
 		# duplicating mesh instance as fade instance
 		var fade_instance := mesh_instance.duplicate()
@@ -181,6 +183,14 @@ static func build(map: MapperMap) -> void:
 		if collision_shapes.size():
 			layer_node.add_child(collision_shape, true)
 			layer_node.move_child(collision_shape, 0)
+			# replacing collision shape with collision siblings
+			if collision_shape.get_child_count() != 0:
+				for i in range(collision_shape.get_child_count()):
+					var child := collision_shape.get_child(0)
+					collision_shape.remove_child(child)
+					layer_node.add_child(child, true)
+					layer_node.move_child(child, i)
+				collision_shape.free()
 		else:
 			collision_shape.free()
 			has_collision = false
@@ -252,6 +262,7 @@ static func _clean_metadata(map: MapperMap) -> void:
 	for node in map.node.find_children("*", "", true, false):
 		if node.has_meta("_MAPPER_LAYER_INDEX"): node.remove_meta("_MAPPER_LAYER_INDEX")
 		if node.has_meta("_MAPPER_LAYER_REPLACE"): node.remove_meta("_MAPPER_LAYER_REPLACE")
+		if node.has_meta("_MAPPER_COLLISION_SIBLING"): node.remove_meta("_MAPPER_COLLISION_SIBLING")
 		if node.has_meta("_MAPPER_DISABLED"): node.remove_meta("_MAPPER_DISABLED")
 		if node.has_meta("_MAPPER_MERGE"): node.remove_meta("_MAPPER_MERGE")
 		if node.has_meta("_MAPPER_GROUP"): node.remove_meta("_MAPPER_GROUP")
@@ -281,15 +292,15 @@ static func _merge_mesh_instances(mesh_instances: Array, inverse_transform: Tran
 		merged_mesh = surface_tools[surface_name].commit(merged_mesh)
 		var surface_index := merged_mesh.get_surface_count() - 1
 		merged_mesh.surface_set_name(surface_index, surface_name)
-	if settings.lightmap_unwrap:
+	if settings.lightmap_unwrap and surface_tools.size():
 		MapperUtilities.lightmap_unwrap(merged_mesh,
 			Transform3D.IDENTITY, settings.lightmap_texel_size)
-	if settings.entity_shadow_meshes:
+	if settings.entity_shadow_meshes and surface_tools.size():
 		MapperUtilities.generate_shadow_mesh(merged_mesh)
 
 	var merged_mesh_instance := MeshInstance3D.new()
 	merged_mesh_instance.mesh = merged_mesh
-	for surface_index in range(merged_mesh.get_surface_count() if merged_mesh else 0):
+	for surface_index in range(merged_mesh.get_surface_count()):
 		var surface_name := merged_mesh.surface_get_name(surface_index)
 		var override_material: Material = materials.get(surface_name, [null, null])[1]
 		merged_mesh_instance.set_surface_override_material(surface_index, override_material)
@@ -299,6 +310,9 @@ static func _merge_mesh_instances(mesh_instances: Array, inverse_transform: Tran
 
 
 static func _merge_collision_shapes(collision_shapes: Array, inverse_transform: Transform3D) -> CollisionShape3D:
+	var merged_shape := CollisionShape3D.new()
+	merged_shape.shape = ConcavePolygonShape3D.new()
+
 	var merged_faces: PackedVector3Array = []
 	for collision_shape in collision_shapes:
 		if collision_shape.disabled: continue
@@ -307,12 +321,17 @@ static func _merge_collision_shapes(collision_shapes: Array, inverse_transform: 
 		var transform := inverse_transform * get_global_transform(collision_shape)
 		if debug_mesh: merged_faces.append_array(transform * debug_mesh.get_faces())
 
-	var collision_shape := CollisionShape3D.new()
-	collision_shape.shape = ConcavePolygonShape3D.new()
-	if merged_faces.size():
-		collision_shape.shape.set_faces(merged_faces)
+		if collision_shape.get_meta("_MAPPER_COLLISION_SIBLING", false):
+			if collision_shape.has_meta("_MAPPER_MERGE"):
+				collision_shape.remove_meta("_MAPPER_MERGE")
+			collision_shape.get_parent().remove_child(collision_shape)
+			collision_shape.name = str(NODE_NAMES[2] + "-0")
+			merged_shape.add_child(collision_shape, true)
+			collision_shape.transform = transform
 
-	return collision_shape
+	if merged_faces.size():
+		merged_shape.shape.set_faces(merged_faces)
+	return merged_shape
 
 
 static func _merge_occluder_instances(occluder_instances: Array, inverse_transform: Transform3D) -> OccluderInstance3D:
