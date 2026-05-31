@@ -35,8 +35,15 @@ All other layers will be parsed as the global **`STORAGE`** node.<br>
 Characters must use override shader materials with **`fade`** property from 0 to 1.<br>
 Additionally, the materials can implement **`fade_index`** property <0 (before), >0 (after).<br>
 Furthemore, the materials need to have **`depth_prepass_alpha`** render mode.<br>
-<br>
-Depth prepass is disabled in **Mobile** renderer, so there is a workaround.<br>
+
+> Depth prepass is disabled in **Mobile** renderer, so there is a workaround.
+
 Override materials can provide **`fade_material`** metadata with a simpler transparency.<br>
 If the override material provides such metadata, then it itself should not use **`fade`** property.<br>
 The animation system will then use different materials for the character and the after-images.<br>
+
+> Swappable weapons/items from the **`STORAGE`** node will not generate after-images.
+
+Modular parts require an invisible placeholder geometry to be present in the animation layers.<br>
+Wrap such geometry into a special brush entity and construct a scripted node in place.<br>
+The scripts can then instantiate the similarly shaped children parts at runtime.<br>
