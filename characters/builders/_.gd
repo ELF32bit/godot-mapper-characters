@@ -6,4 +6,4 @@ static func build(map: MapperMap, entity: MapperEntity) -> Node:
 	if node: return node
 	match entity.get_classname_property():
 		map.settings.world_entity_classname: return null
-	return Marker3D.new()
+		_: return Marker3D.new()
