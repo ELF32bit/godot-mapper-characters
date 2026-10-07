@@ -548,7 +548,7 @@ static func _create_animation_table(map: MapperMap, animations: Dictionary, anim
 				animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
 				animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_NEAREST)
 				animation.track_set_interpolation_loop_wrap(track_index, false)
-				animation.track_insert_key(track_index, 0.0, false)
+				animation.track_insert_key(track_index, 0.0, true)
 				animation.track_set_imported(track_index, true)
 				track_index += 1
 
