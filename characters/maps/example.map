@@ -8,7 +8,7 @@
 {
 "classname" "info_animation"
 "origin" "0 0 0"
-"TEST" "{\"frame_duration\": 0.25, \"loop_mode\": 2, \"fade\": [0.5, 0.75, 0.9]}"
+"TEST" "{'frame_duration': 0.25, 'loop_mode': 2, 'fade': [0.5, 0.75, 0.9]}"
 "autoplay" "TEST"
 }
 // entity 2

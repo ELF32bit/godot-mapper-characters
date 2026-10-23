@@ -1219,10 +1219,10 @@
 {
 "classname" "info_animation"
 "origin" "0 0 0"
-"IDLE" "{\"frame_duration\": 0.25, \"loop_mode\": 1}"
-"DANCE" "{\"frame_duration\": 0.25, \"loop_mode\": 1, \"fade\": [0.75]}"
+"IDLE" "{'frame_duration': 0.25, 'loop_mode': 1}"
+"DANCE" "{'frame_duration': 0.25, 'loop_mode': 1, 'fade': [0.75]}"
 "autoplay" "WALK"
-"WALK" "{\"frame_duration\": 0.25, \"loop_mode\": 1, \"fade\": [0.75]}"
+"WALK" "{'frame_duration': 0.25, 'loop_mode': 1, 'fade': [0.75]}"
 "_tb_layer" "9"
 }
 // entity 58
